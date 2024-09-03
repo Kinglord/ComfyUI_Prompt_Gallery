@@ -53,6 +53,7 @@ I aslo thought it would be cool to let people play with something that's not LoR
 [**Navimixu**](https://civitai.com/user/navimixu)
 - [Pony Wildcards](https://civitai.com/models/615967/ponyxl-wildcards-vault)
 - [A1111 Exntesion](https://github.com/navimixu/wildcard-gallery/tree/main)
+- I also totally yoinked one of their placeholder images 💖
 
 **Comfy Org (Duh)**
 
