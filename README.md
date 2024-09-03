@@ -31,6 +31,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - Add some images to the sidebar yourself via the Custom category.
 - You can also drag and drop images with embedded workflows onto the canvas to load their workflow.
 - With some editing can support other YAML files, if you're cool like that.
+- If you use Pony in particular the Art Style category makes it super easy to see what various tags can do!
 
 ## Limitations
 - Uses the Input directory for image storage. (boo)
