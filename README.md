@@ -15,7 +15,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - Drag and drop images with embedded workflows to load it on the canvas (similar to how the new queue works)
 
 ## Installation
-- `girclone` this repo into your ComfyUI custom nodes folder
+- `gitclone` this repo into your ComfyUI custom nodes folder
   - There are other ways to do this since it's just a js file but if I ever do add nodes better safe than sorry
 - Copy the `promptImages` folder into your ComfyUI **INPUT** folder (yes I know it's not great but I can't use user directories yet)
 - Download any or all (or none if you're gonna be like that) of [Navimixu's archives](https://civitai.com/models/615967/ponyxl-wildcards-vault) and extract them into the `promptImages` folder. If you do it right your folder should look like this with all the images in various subfolders under `thumbnails`.
