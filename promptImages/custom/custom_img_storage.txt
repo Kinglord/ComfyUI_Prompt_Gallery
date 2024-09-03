@@ -1,0 +1,1 @@
+DO NOT place images in this folder manually, they will NOT be picked up by the plugin. You must Add them via the UI.
