@@ -40,7 +40,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - [x] Learn new FE
 - [ ] Prompt stacking? (built a prompt by clicking on various pictures)
 - [ ] Better prompt handling and QoL enhanvements
-- [ ] Whatever bugs you fine / features you submit
+- [ ] Whatever bugs you find / features you submit
 
 ## Why
 ![image](https://media1.tenor.com/m/jGgmfDOxmuMAAAAC/ryan-reynolds-but-why.gif)
