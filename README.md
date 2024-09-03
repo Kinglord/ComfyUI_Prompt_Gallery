@@ -29,12 +29,13 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 ## Usage
 - Click on any image in the gallery to copy its prompt tags to the clipboard to paste into your workflow.
 - Add some images to the sidebar yourself via the Custom category.
+- You can also drag and drop images with embedded workflows onto the canvas to load their workflow.
 - With some editing can support other YAML files, if you're cool like that.
 
 ## Limitations
 - Uses the Input directory for image storage. (boo)
 - Uses local storage for setting and metadata, not terrible but a bummer if you change browsers or computers.
-- Doesn't do well getting metadata from complex workflows or prompts in non-core nodes
+- Doesn't do well getting metadata from complex workflows or prompts in non-core nodes.
 
 ## Roadmap
 - [x] Learn new FE
@@ -47,7 +48,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 
 I got excited by the new front end and wanted to do something solely based in that if I could. It was also fun to just work in FE for a bit. If you're looking for a simple example of something that leverages the new sidebar, toasts, and the new png metadata scraper, this could be just what you're after!
 
-I aslo thought it would be cool to let people play with something that's not LoRA based. Many checkpoints now have a lot of built in knowledge ast this point, and whenever you don't need a Lora, the better in my book!
+I aslo thought it would be cool to let people play with something that's not LoRA based. Many checkpoints now have a lot of built in knowledge at this point, and whenever you don't need a Lora, the better in my book!
 
 ## Credits
 [**Navimixu**](https://civitai.com/user/navimixu)
