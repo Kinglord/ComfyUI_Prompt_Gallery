@@ -12,7 +12,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - Easily add your own images to the Custom category
 - Search and Sort functions
 - Automatic metadata extraction for prompt tags (only works with default ComfyUI nodes ATM)
-- Deag and drop images with embedded workflows to load it on the canvas (similar to how the new queue works)
+- Drag and drop images with embedded workflows to load it on the canvas (similar to how the new queue works)
 
 ## Installation
 - `girclone` this repo into your ComfyUI custom nodes folder
