@@ -34,7 +34,7 @@ class PromptGallery {
 
         this.baseUrl = `${window.location.protocol}//${window.location.host}`;
         this.sectionStates = this.loadSectionStates();
-        this.placeholderImageUrl = `${this.baseUrl}/view?filename=SKIP.jpeg&type=input&subfolder=promptImages/thumbnails`;
+        this.placeholderImageUrl = `${this.baseUrl}/prompt_gallery/image?filename=SKIP`;
         this.customImages = this.loadCustomImages();
         this.isSearchActive = false;
 
@@ -235,10 +235,10 @@ class PromptGallery {
             // Prepare the form data with the correct path
             const formData = new FormData();
             formData.append('image', file);
-            formData.append('subfolder', 'promptImages/thumbnails/custom'); // Specify the subfolder
+            formData.append('subfolder', 'custom'); // Specify the subfolder
     
             // Upload file directly to the correct directory
-            const uploadResponse = await api.fetchApi('/upload/image', {
+            const uploadResponse = await api.fetchApi('/prompt_gallery/upload', {
                 method: 'POST',
                 body: formData
             });
@@ -348,7 +348,7 @@ class PromptGallery {
     async addCustomImage(imagePath, tags) {
         const newImage = {
             name: imagePath.split('/').pop(),
-            path: `/view?filename=${imagePath}&type=input&subfolder=promptImages/thumbnails/custom`,
+            path: `/prompt_gallery/image?filename=${imagePath}&subfolder=custom`,
             tags: tags,
             type: "Custom"
         };
@@ -735,7 +735,7 @@ class PromptGallery {
     }
 
     async fetchYamlContent(filename) {
-        const response = await fetch(`${this.baseUrl}/view?filename=${filename}&type=input&subfolder=promptImages`);
+        const response = await fetch(`${this.baseUrl}/prompt_gallery/yaml?filename=${filename}`);
         if (!response.ok) {
             throw new Error(`Failed to fetch YAML file ${filename}: ${response.statusText}`);
         }
@@ -778,8 +778,8 @@ class PromptGallery {
                     }
                 }
     
-                const imageFilename = `${key}.jpeg`;
-                const imageUrl = `${this.baseUrl}/view?filename=${imageFilename}&type=input&subfolder=promptImages/thumbnails/${path}`;
+                const imageFilename = `${key}`;
+                const imageUrl = `${this.baseUrl}/prompt_gallery/image?filename=${imageFilename}&subfolder=${path}`;
                 const tags = nextLine.trim().substring(1).trim();
                 
                 const image = { name: key, path: imageUrl, tags: tags, type: type };
