@@ -1,0 +1,14 @@
+[project]
+name = "comfyui_prompt_gallery"
+description = ""
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/Kinglord/ComfyUI_Prompt_Gallery"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI_Prompt_Gallery"
+Icon = ""
