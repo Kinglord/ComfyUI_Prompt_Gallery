@@ -42,7 +42,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - [x] Learn new FE
 - [ ] Exposing plugin options via settings
 - [ ] Easier support for additional "wildcard" packages
-- [ ] Prompt stacking? (built a prompt by clicking on various pictures)
+- [ ] Prompt stacking? (build a prompt by clicking on various pictures)
 - [ ] Better prompt handling and QoL enhancements
 - [ ] Some actual "wildcard" style features
 - [ ] Whatever bugs you find / features you submit
