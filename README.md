@@ -17,8 +17,8 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 ## Installation
 - `git clone` this repo into your ComfyUI custom nodes folder
   - There are other ways to do this since it's just a js file but if I ever do add nodes better safe than sorry. The repo is tiny enough you can just download it and stick it in there, I won't tell.
-- Copy the `promptImages` folder into your ComfyUI **INPUT** folder (yes I know it's not great but I can't use user directories yet)
-- Download any or all (or none if you're gonna be like that) of [Navimixu's archives](https://civitai.com/models/615967/ponyxl-wildcards-vault) and extract them into the `promptImages` folder. If you do it right your folder should look like this with all the images in various subfolders under `thumbnails`
+- Download any or all (or none if you're gonna be like that) of [Navimixu's archives](https://civitai.com/models/615967/ponyxl-wildcards-vault) and extract them into the `promptImages` folder (located inside this custom node directory). If you do it right your folder should look like this with all the images in various subfolders under `thumbnails`
+- NOTE - If you were a SUPER EARLY adopter of this then you need to move the contents of the promptImages folder in INPUT to the folder within the custom node. Once done you can nuke the old folder (yay)
 
   ![image](https://github.com/user-attachments/assets/32a77786-0cb1-42c5-83f0-303aa29bd980)
 
@@ -34,13 +34,14 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - If you use Pony in particular the Art Style category makes it super easy to see what various tags can do!
 
 ## Limitations
-- Uses the Input directory for image storage. (boo)
 - Uses local storage for setting and metadata, not terrible but a bummer if you change browsers or computers.
 - Doesn't do well getting metadata from complex workflows or prompts in non-core nodes.
 
 ## Roadmap
 - [x] Learn new FE
+- [x] Move promptImages out of Input - thanks ltdrdata!
 - [ ] Exposing plugin options via settings
+- [ ] Implement on-disk storage for metadata (move away from local storage)
 - [ ] Easier support for additional "wildcard" packages
 - [ ] Prompt stacking? (build a prompt by clicking on various pictures)
 - [ ] Better prompt handling and QoL enhancements
@@ -61,7 +62,7 @@ I aslo thought it would be cool to let people play with something that's not LoR
 - I also totally yoinked one of their placeholder images 💖
 
 **Comfy Org (Duh)**
-
+- Special shoutout to ltdrdata for helping me get things out of the Input folder 💙
 https://github.com/comfyanonymous/ComfyUI
 
 ### Compatability
