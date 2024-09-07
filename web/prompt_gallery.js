@@ -13,14 +13,6 @@ class PromptGallery {
         this.searchInput = this.createSearchInput();
         this.sortToggle = this.createSortToggle();
         this.accordion = $el("div.prompt-accordion");
-        this.element = $el("div.prompt-gallery-popup", [
-            $el("h3", "Prompt Image Gallery"),
-            $el("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, [
-                this.searchInput,
-                this.sortToggle
-            ]),
-            this.accordion
-        ]);
         this.yamlFiles = [
             { name: "PonyXl-artstyles.yaml", type: "Art Styles", skipLevels: 0, sections: null, order: 1 },
             { name: "PonyXl-game_persona.yaml", type: "Game Characters", skipLevels: 0, sections: null, order: 2 },
@@ -29,26 +21,34 @@ class PromptGallery {
             { name: "PonyXl-poses.yaml", type: "Poses", skipLevels: 0, sections: null, order: 5 },
             { name: "PonyXl-expressions.yaml", type: "Expressions", skipLevels: 0, sections: null, order: 6, ignoreKey: "chara_expression" },
             { name: "PonyXl-scenes.yaml", type: "Scenes", skipLevels: 0, sections: null, order: 7 }
-            // Add custom yaml files here if you want and know how to do it :D
+            // will add more datasets here over time
         ];
-
         this.baseUrl = `${window.location.protocol}//${window.location.host}`;
-        this.sectionStates = this.loadSectionStates();
-        this.placeholderImageUrl = `${this.baseUrl}/prompt_gallery/image?filename=SKIP`;
-        this.customImages = this.loadCustomImages();
+        this.placeholderImageUrl = `${this.baseUrl}/prompt_gallery/image?filename=SKIP.jpeg`;
+        this.customImages = [];
         this.isSearchActive = false;
-
+        this.debouncedSaveState = this.debounce(this.savePluginData.bind(this), 600000); // 10 minute delay
         this.resetButton = this.createResetCustomImagesButton();
+        this.missingFiles = new Set();
+    
         this.element = $el("div.prompt-gallery-popup", [
             $el("h3", "Prompt Image Gallery"),
-            this.resetButton, // Add the reset button here
             $el("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, [
                 this.searchInput,
                 this.sortToggle
             ]),
             this.accordion
         ]);
-
+    
+        // Load plugin data and update
+        this.loadPluginData().then(() => {
+            this.updateDownloadButtonVisibility();
+            this.update();
+        });
+        
+        window.addEventListener('beforeunload', () => {
+            this.savePluginData();
+        });
     }
 
     createResetCustomImagesButton() {
@@ -56,23 +56,26 @@ class PromptGallery {
             textContent: "Reset Custom Images",
             onclick: () => this.resetCustomImages(),
             style: {
-                marginBottom: "10px",
                 padding: "5px 10px",
                 backgroundColor: "#f44336",
                 color: "white",
                 border: "none",
                 borderRadius: "4px",
                 cursor: "pointer",
-                width: "100%", // Make the button full width
+                width: "100%",
+                height: "30px",  // Set a fixed height
+                fontSize: "14px",
+                textAlign: "center",
+                lineHeight: "20px"
             }
         });
         return button;
     }
 
-    resetCustomImages() {
-        if (confirm("Are you sure you want to reset all custom images? This action cannot be undone! (This does not delete the images in the directory)")) {
-            localStorage.removeItem('customGalleryImages');
+    async resetCustomImages() {
+        if (confirm("Are you sure you want to reset all custom images? This action cannot be undone!")) {
             this.customImages = [];
+            await this.savePluginData();
             this.update();
             console.log("Custom images have been reset.");
             app.extensionManager.toast.add({
@@ -83,29 +86,115 @@ class PromptGallery {
             });
         }
     }
-
-    loadCustomImages() {
-        const savedImages = localStorage.getItem('customGalleryImages');
-        return savedImages ? JSON.parse(savedImages) : [];
-    }
-
-    saveCustomImages() {
-        localStorage.setItem('customGalleryImages', JSON.stringify(this.customImages));
-    }
-
-    loadSectionStates() {
-        const savedStates = localStorage.getItem('wildcardGallerySectionStates');
-        if (savedStates) {
-            return JSON.parse(savedStates);
-        } else {
-            // If no saved states, return an empty object
-            // Sections will default to open
-            return {};
+    
+    async savePluginData() {
+        const pluginData = {
+            customImages: this.customImages,
+            sectionStates: this.sectionStates,
+            sortAscending: this.sortAscending,
+            noFilesWarningDismissed: this.noFilesWarningDismissed,
+            downloadLinkDismissed: this.downloadLinkDismissed,
+            allYamlFilesPresent: this.allYamlFilesPresent
+        };
+    
+        try {
+            const response = await api.fetchApi('/userdata/prompt_gallery_data.json?overwrite=true', {
+                method: 'POST',
+                body: JSON.stringify(pluginData),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                throw new Error('Failed to save plugin data');
+            }
+            console.log('Plugin data saved successfully:', pluginData);
+        } catch (error) {
+            console.error('Error saving plugin data:', error);
         }
     }
 
-    saveSectionStates() {
-        localStorage.setItem('wildcardGallerySectionStates', JSON.stringify(this.sectionStates));
+    async loadPluginData() {
+        try {
+            const response = await api.fetchApi('/userdata/prompt_gallery_data.json');
+            if (response.ok) {
+                const data = await response.json();
+                this.customImages = data.customImages || [];
+                this.sectionStates = data.sectionStates || {};
+                this.sortAscending = data.sortAscending !== undefined ? data.sortAscending : true;
+                this.noFilesWarningDismissed = data.noFilesWarningDismissed || false;
+                this.downloadLinkDismissed = data.downloadLinkDismissed || false;
+                // Always set allYamlFilesPresent to false on startup
+                this.allYamlFilesPresent = false;
+    
+                console.log('Plugin data loaded successfully:', data);
+            } else if (response.status === 404) {
+                console.log('No plugin data found. Starting with default values.');
+                this.customImages = [];
+                this.sectionStates = {};
+                this.sortAscending = true;
+                this.noFilesWarningDismissed = false;
+                this.downloadLinkDismissed = false;
+                this.allYamlFilesPresent = false;
+            } else {
+                throw new Error('Failed to load plugin data');
+            }
+        } catch (error) {
+            console.error('Error loading plugin data:', error);
+            this.customImages = [];
+            this.sectionStates = {};
+            this.sortAscending = true;
+            this.noFilesWarningDismissed = false;
+            this.downloadLinkDismissed = false;
+            this.allYamlFilesPresent = false;
+        }
+    
+        // Check YAML files after setting allYamlFilesPresent to false
+        this.allYamlFilesPresent = await this.checkYamlFiles();
+        await this.savePluginData();
+    
+        this.updateDownloadButtonVisibility();
+    }
+    
+    async checkYamlFiles() {
+        for (const file of this.yamlFiles) {
+            try {
+                const response = await fetch(`${this.baseUrl}/prompt_gallery/yaml?filename=${file.name}`);
+                if (!response.ok) {
+                    console.log(`YAML file not found: ${file.name}`);
+                    return false;
+                }
+            } catch (error) {
+                console.error(`Error checking YAML file ${file.name}:`, error);
+                return false;
+            }
+        }
+        console.log('All YAML files present');
+        return true;
+    }
+    
+    updateDownloadButtonVisibility() {
+        console.log("Updating download button visibility");
+        console.log("allYamlFilesPresent:", this.allYamlFilesPresent);
+        console.log("downloadLinkDismissed:", this.downloadLinkDismissed);
+    
+        const existingButton = this.element.querySelector('.download-image-sets-button');
+        console.log("Existing button:", existingButton);
+    
+        if (!this.allYamlFilesPresent && !this.downloadLinkDismissed) {
+            console.log("Conditions met to show button");
+            if (!existingButton) {
+                console.log("Creating new button");
+                const button = this.createDownloadImageSetsButton();
+                this.element.insertBefore(button, this.element.children[1]);
+            }
+        } else {
+            console.log("Conditions met to hide button");
+            if (existingButton) {
+                console.log("Removing existing button");
+                existingButton.remove();
+            }
+        }
     }
 
     createAddCustomImageButton() {
@@ -146,6 +235,67 @@ class PromptGallery {
         button.appendChild(addText);
 
         return button;
+    }
+
+    createDownloadImageSetsButton() {
+        const container = $el("div", {
+            className: "download-image-sets-button",
+            style: {
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px",
+                padding: "5px 10px",
+                backgroundColor: "#236692",
+                color: "white",
+                borderRadius: "4px",
+                cursor: "pointer",
+                transition: "background-color 0.3s"
+            }
+        });
+    
+        const link = $el("a", {
+            href: "https://civitai.com/models/615967?modelVersionId=789576",
+            target: "_blank",
+            textContent: "Download Image Sets",
+            style: {
+                color: "white",
+                textDecoration: "none",
+                flexGrow: 1,
+                textAlign: "center"
+            }
+        });
+    
+        const dismissButton = $el("button", {
+            textContent: "×",
+            onclick: async (e) => {
+                e.stopPropagation();
+                this.downloadLinkDismissed = true;
+                await this.savePluginData(); // Save the updated state
+                container.remove();
+            },
+            style: {
+                background: "none",
+                border: "none",
+                color: "white",
+                fontSize: "20px",
+                cursor: "pointer",
+                padding: "0 5px"
+            }
+        });
+    
+        container.appendChild(link);
+        container.appendChild(dismissButton);
+    
+        container.addEventListener("mouseover", () => {
+            container.style.backgroundColor = "#2c7cb0";
+        });
+    
+        container.addEventListener("mouseout", () => {
+            container.style.backgroundColor = "#236692";
+        });
+    
+        return container;
     }
 
     setupDragAndDrop() {
@@ -235,7 +385,7 @@ class PromptGallery {
             // Prepare the form data with the correct path
             const formData = new FormData();
             formData.append('image', file);
-            formData.append('subfolder', 'custom'); // Specify the subfolder
+            formData.append('subfolder', 'custom'); // Specify the subfolder - not needed anymore
     
             // Upload file directly to the correct directory
             const uploadResponse = await api.fetchApi('/prompt_gallery/upload', {
@@ -244,62 +394,107 @@ class PromptGallery {
             });
     
             if (!uploadResponse.ok) {
-                throw new Error("Failed to upload file");
+                throw new Error(`Failed to upload file: ${uploadResponse.statusText}`);
             }
     
-            const uploadResult = await uploadResponse.json();
-            const imagePath = uploadResult.name; // This should now be the full path including the subfolder
+            let uploadResult;
+            try {
+                uploadResult = await uploadResponse.json();
+            } catch (jsonError) {
+                console.error('Error parsing JSON response:', jsonError);
+                throw new Error('Invalid response from server');
+            }
+    
+            if (!uploadResult || !uploadResult.name) {
+                throw new Error('Invalid response from server: missing image name');
+            }
+    
+            const imagePath = uploadResult.name.split('\\').pop(); // Just get the filename
+
+            // Add a delay or file existence check here
+            await this.ensureFileExists(imagePath);
     
             // Check if the image already exists in customImages
-            const existingImageIndex = this.customImages.findIndex(img => img.name === imagePath.split('/').pop());
+            const existingImageIndex = this.customImages.findIndex(img => img.name === imagePath);
             
             if (existingImageIndex === -1) {
                 // Add to custom images only if it doesn't already exist
                 await this.addCustomImage(imagePath, "");
             } else {
-                console.log(`Image ${imagePath} already exists in custom images. Skipping addition.`);
+                console.log(`Image ${imagePath} already exists in custom images. Updating metadata.`);
             }
     
-            // Attempt to fetch metadata (this might not be available for custom images)
+            // Attempt to fetch metadata
             try {
                 const metadata = await this.fetchImageMetadata(imagePath);
-                const tags = this.extractTagsFromMetadata(metadata);
+                const tags = this.extractPromptFromMetadata(metadata);
                 // Update the custom image with tags if available
                 this.updateCustomImageTags(imagePath, tags);
             } catch (metadataError) {
                 console.warn("Metadata not available for custom image:", metadataError);
             }
     
-            api.toast.add({
-                severity: "success",
-                summary: "Upload Successful",
-                detail: `Added custom image: ${imagePath.split('/').pop()}`,
-                life: 3000
-            });
+            this.showToast('success', 'Upload Successful', `Added custom image: ${imagePath}`);
         } catch (error) {
             console.error("Error handling file upload:", error);
-            api.toast.add({
-                severity: "error",
-                summary: "Upload Failed",
-                detail: "Failed to add custom image. Please try again.",
-                life: 3000
-            });
+            this.showToast('error', 'Upload Failed', `Failed to add custom image: ${error.message}`);
         }
+    }
+
+    async ensureFileExists(filename) {
+        const maxAttempts = 10;
+        const delayMs = 500;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                const response = await fetch(`${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(filename)}&subfolder=custom`, {method: 'HEAD'});
+                if (response.ok) {
+                    console.log(`File ${filename} exists after ${attempt + 1} attempts`);
+                    return;
+                }
+            } catch (error) {
+                console.warn(`Attempt ${attempt + 1} to verify file existence failed:`, error);
+            }
+
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+
+        throw new Error(`File ${filename} not found after ${maxAttempts} attempts`);
     }
 
     async fetchImageMetadata(imagePath) {
-        const fullImagePath = imagePath.startsWith('http') ? imagePath : `${this.baseUrl}${imagePath}`;
+        const fullImagePath = `${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(imagePath)}&subfolder=custom`;
         
-        const response = await fetch(fullImagePath);
-        if (!response.ok) {
-            throw new Error("Failed to fetch image");
+        console.log(`Attempting to fetch metadata from: ${fullImagePath}`);
+        
+        try {
+            const response = await fetch(fullImagePath);
+            if (!response.ok) {
+                console.error(`Failed to fetch image. Status: ${response.status}, StatusText: ${response.statusText}`);
+                throw new Error(`Failed to fetch image: ${response.statusText}`);
+            }
+            
+            console.log(`Successfully fetched image from: ${fullImagePath}`);
+            
+            const arrayBuffer = await response.arrayBuffer();
+            console.log(`ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
+            
+            console.log('About to extract metadata...');
+            const metadata = await pngMetadata.getFromPngBuffer(new Uint8Array(arrayBuffer));
+            console.log(`Extracted metadata:`, metadata);
+            
+            return metadata;
+        } catch (error) {
+            console.error(`Error in fetchImageMetadata: ${error.message}`);
+            console.error(error.stack);  // Log the full error stack
+            throw error;
         }
-        const arrayBuffer = await response.arrayBuffer();
-        return await pngMetadata.getFromPngBuffer(new Uint8Array(arrayBuffer));
     }
 
     extractPromptFromMetadata(metadata) {
+        console.log('Extracting prompt from metadata:', metadata);
         if (!metadata || !metadata.prompt) {
+            console.log('No prompt found in metadata');
             return "";
         }
     
@@ -346,9 +541,9 @@ class PromptGallery {
     }
 
     async addCustomImage(imagePath, tags) {
-        const newImage = {
-            name: imagePath.split('/').pop(),
-            path: `/prompt_gallery/image?filename=${imagePath}&subfolder=custom`,
+        let newImage = {
+            name: imagePath,
+            path: `/prompt_gallery/image?filename=${encodeURIComponent(imagePath)}&subfolder=custom`,
             tags: tags,
             type: "Custom"
         };
@@ -363,11 +558,18 @@ class PromptGallery {
         } else {
             console.log(`Image ${newImage.name} already exists in custom images. Updating metadata.`);
             newImage = this.customImages[existingImageIndex]; // Use the existing image object
+            newImage.path = `/prompt_gallery/image?filename=${encodeURIComponent(imagePath)}&subfolder=custom`; // Update path
+            app.extensionManager.toast.add({
+                severity: "info",
+                summary: "Image Updated",
+                detail: `Metadata for "${newImage.name}" has been updated.`,
+                life: 3000
+            });
         }
     
         // Attempt to extract metadata
         try {
-            const metadata = await this.fetchImageMetadata(newImage.path);
+            const metadata = await this.fetchImageMetadata(imagePath); // Pass imagePath directly
             const extractedTags = this.extractPromptFromMetadata(metadata);
             if (extractedTags) {
                 newImage.tags = extractedTags;
@@ -395,8 +597,12 @@ class PromptGallery {
             });
         }
     
-        this.saveCustomImages();
+        // Save custom images
+        await this.savePluginData();
+
+        // Update the UI
         this.update();
+    
         return imageAdded;
     }
 
@@ -404,7 +610,7 @@ class PromptGallery {
         const image = this.customImages.find(img => img.path.includes(imagePath));
         if (image) {
             image.tags = tags;
-            this.saveCustomImages();
+            this.savePluginData();
         }
     }
 
@@ -452,15 +658,21 @@ class PromptGallery {
     toggleSort() {
         this.sortAscending = !this.sortAscending;
         this.sortToggle.textContent = this.sortAscending ? "Sort: A-Z" : "Sort: Z-A";
+        this.debouncedSaveState();
         this.sortAndDisplayImages();
     }
 
     sortAndDisplayImages() {
         this.accordion.innerHTML = "";
-
+    
         const imagesToDisplay = this.isSearchActive ? this.filteredImages : this.allImages;
+        const customImagesToDisplay = this.isSearchActive ? this.filteredCustomImages : this.customImages;
+      
+        if (imagesToDisplay.length === 0 && this.customImages.length === 0 && !this.isSearchActive && localStorage.getItem('noFilesWarningDismissed') !== 'true') {
+            this.displayNoFilesMessage();
+        }
         
-        if (imagesToDisplay.length === 0) {
+        if (imagesToDisplay.length === 0 && customImagesToDisplay.length === 0 && this.isSearchActive) {
             const noImagesFoundMessage = $el("div", {
                 style: {
                     display: "flex",
@@ -469,29 +681,29 @@ class PromptGallery {
                     justifyContent: "center",
                     height: "200px",
                     width: "100%",
-                    backgroundColor: "#1a1a1a",  // Dark background
+                    backgroundColor: "#1a1a1a",
                     borderRadius: "8px",
-                    border: "1px solid #333"  // Subtle border
+                    border: "1px solid #333"
                 }
             });
-    
+        
             const sadEmoji = $el("div", {
                 textContent: "😔",
                 style: {
                     fontSize: "64px",
-                    color: "#666666",  // Darker gray for the emoji
+                    color: "#666666",
                     marginBottom: "20px"
                 }
             });
-    
+        
             const messageText = $el("div", {
                 textContent: this.isSearchActive ? "No matching images found" : "No images available",
                 style: {
                     fontSize: "18px",
-                    color: "#aaaaaa"  // Light gray for better readability on dark background
+                    color: "#aaaaaa"
                 }
             });
-    
+        
             noImagesFoundMessage.appendChild(sadEmoji);
             noImagesFoundMessage.appendChild(messageText);
             this.accordion.appendChild(noImagesFoundMessage);
@@ -510,13 +722,8 @@ class PromptGallery {
             }
         }
     
-        // Handle custom images separately
-        groupedImages["Custom"] = this.customImages;
-    
-        // Ensure Custom category always exists
-        if (!groupedImages["Custom"]) {
-            groupedImages["Custom"] = [];
-        }
+        // Always include the Custom category
+        groupedImages["Custom"] = customImagesToDisplay;
     
         const categoryOrder = new Map(this.yamlFiles.flatMap(file => {
             const orders = [[file.type, file.order]];
@@ -572,6 +779,10 @@ class PromptGallery {
         this.filteredImages = this.allImages.filter(image => 
             image && image.name && image.name.toLowerCase().includes(searchTerm)
         );
+        // Filter custom images
+        this.filteredCustomImages = this.customImages.filter(image => 
+            image && image.name && image.name.toLowerCase().includes(searchTerm)
+        );
         this.sortAndDisplayImages();
     }
 
@@ -604,45 +815,41 @@ class PromptGallery {
         this.accordion.innerHTML = "Loading...";
         
         try {
-            this.allImages = [];
-            let filesFound = false;
+            if (this.allImages.length === 0) {
+                let filesFound = false;
     
-            for (const file of this.yamlFiles) {
-                try {
-                    const yamlContent = await this.fetchYamlContent(file.name);
-                    const parsedContent = this.parseYamlForImages(
-                        yamlContent,
-                        file.type,
-                        file.skipLevels,
-                        file.sections,
-                        file.pathAdjustment,
-                        file.ignoreKey
-                    );
-                    
-                    console.log(`Parsed content for ${file.name}:`, parsedContent);
+                for (const file of this.yamlFiles) {
+                    if (!this.missingFiles.has(file.name)) {
+                        try {
+                            const yamlContent = await this.fetchYamlContent(file.name);
+                            if (yamlContent) {
+                                const parsedContent = this.parseYamlForImages(
+                                    yamlContent,
+                                    file.type,
+                                    file.skipLevels,
+                                    file.sections,
+                                    file.pathAdjustment,
+                                    file.ignoreKey
+                                );
+                                
+                                this.allImages.push(...parsedContent);
+                                filesFound = true;
+                            }
+                        } catch (error) {
+                            console.warn(`File ${file.name} couldn't be processed. Skipping.`);
+                        }
+                    }
+                }
     
-                    this.allImages.push(...parsedContent);
-                    filesFound = true;
-                } catch (error) {
-                    console.warn(`File ${file.name} not found or couldn't be processed. Skipping.`, error);
+                if (!filesFound && this.customImages.length === 0 && localStorage.getItem('noFilesWarningDismissed') !== 'true') {
+                    this.displayNoFilesMessage();
                 }
             }
     
-            console.log("All Images after parsing:", this.allImages);
-    
-            this.accordion.innerHTML = ""; // Clear the "Loading..." message
-    
-            // Display warning if conditions are met
-            if (!filesFound && this.customImages.length === 0 && localStorage.getItem('noFilesWarningDismissed') !== 'true') {
-                this.displayNoFilesMessage();
-            }
-    
-            // Always display the accordion
+            this.accordion.innerHTML = "";
             this.filteredImages = this.allImages;
-            console.log("Parsed Prompt Images:", this.allImages);
             this.sortAndDisplayImages();
             
-            // Use setTimeout to ensure DOM is updated before setting up drag and drop
             setTimeout(() => {
                 this.setupDragAndDrop();
             }, 0);
@@ -699,7 +906,7 @@ class PromptGallery {
         });
     
         const text2Element = $el("p", {
-            innerHTML: "After downloading a package simply extract it to your promptImages folder in your Input directory. (If it doesn't exist just create it, obviously.)",
+            innerHTML: "After downloading a package simply extract it to your promptImages folder in this custom node directory.",
             style: {
                 fontSize: "18px",
                 color: "#856404",
@@ -710,9 +917,9 @@ class PromptGallery {
         const dismissButton = $el("button", {
             textContent: "Dismiss",
             onclick: () => {
-                localStorage.setItem('noFilesWarningDismissed', 'true');
+                this.savePluginData({ noFilesWarningDismissed: true });
                 messageContainer.remove();
-                this.update(); // Re-run update to display categories
+                this.update();
             },
             style: {
                 marginTop: "10px",
@@ -735,12 +942,22 @@ class PromptGallery {
     }
 
     async fetchYamlContent(filename) {
-        const response = await fetch(`${this.baseUrl}/prompt_gallery/yaml?filename=${filename}`);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch YAML file ${filename}: ${response.statusText}`);
+        if (this.missingFiles.has(filename)) {
+            return null;
         }
-        return await response.text();
+        const response = await fetch(`${this.baseUrl}/prompt_gallery/yaml?filename=${filename}`);
+        if (response.status === 404) {
+            this.missingFiles.add(filename);
+            return null;
+        }
+        if (!response.ok) {
+            console.warn(`Failed to fetch YAML file ${filename}: ${response.statusText}`);
+            return null;
+        }
+        const content = await response.text();
+        return content.trim() === "" ? null : content;
     }
+    
 
     parseYamlForImages(yamlContent, type, skipLevels, sections = null, pathAdjustment = null, ignoreKey = null) {
         const lines = yamlContent.split('\n');
@@ -763,8 +980,16 @@ class PromptGallery {
             if (nextLine && nextLine.trim().startsWith('-')) {
                 let path = stack.slice(skipLevels, -1).map(item => item.key).join('/');
                 
-                // Remove the ignored key from the path
-                // Only apply the ignoreKey logic if ignoreKey is not null
+                // Remove any duplicate 'ponyxl' in the path
+                path = path.replace(/^ponyxl\//, '');
+    
+                const tags = nextLine.trim().substring(1).trim();
+                
+                // Skip empty tags or tags that are just a space
+                if (tags === '' || tags === ' ' || key.toLowerCase() === 'skip') {
+                    return; // Skip this iteration
+                }
+    
                 if (ignoreKey) {
                     path = path.split('/').filter(segment => segment !== ignoreKey).join('/');
                 }
@@ -779,8 +1004,8 @@ class PromptGallery {
                 }
     
                 const imageFilename = `${key}`;
-                const imageUrl = `${this.baseUrl}/prompt_gallery/image?filename=${imageFilename}&subfolder=${path}`;
-                const tags = nextLine.trim().substring(1).trim();
+                const subfolderPath = `ponyxl/${path}`;
+                const imageUrl = `${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(imageFilename)}&subfolder=${encodeURIComponent(subfolderPath)}`;
                 
                 const image = { name: key, path: imageUrl, tags: tags, type: type };
                 
@@ -850,7 +1075,6 @@ class PromptGallery {
             "data-type": type
         });
     
-    
         const header = $el("div.accordion-header", {
             style: {
                 cursor: "pointer",
@@ -864,7 +1088,6 @@ class PromptGallery {
             }
         });
         
-        // Always add 1 to the count for the Custom category to include the "Add" button
         const itemCount = type === "Custom" ? images.length + 1 : images.length;
         const headerText = $el("span", { textContent: `${type} (${itemCount})` });
         const isOpen = this.sectionStates[type] !== false;
@@ -878,21 +1101,21 @@ class PromptGallery {
         
         header.appendChild(headerText);
         header.appendChild(indicator);
-
+    
         const content = $el("div.accordion-content", {
             style: {
-                display: isOpen ? "grid" : "none",
-                gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+                display: isOpen ? "flex" : "none",
+                flexDirection: "column",
                 gap: "10px",
                 padding: "10px",
                 backgroundColor: "#1a1a1a",
                 borderRadius: "4px"
             }
         });
-
+    
         header.onclick = () => {
             if (content.style.display === "none") {
-                content.style.display = "grid";
+                content.style.display = "flex";
                 indicator.textContent = "-";
                 this.sectionStates[type] = true;
             } else {
@@ -900,28 +1123,55 @@ class PromptGallery {
                 indicator.textContent = "+";
                 this.sectionStates[type] = false;
             }
-            this.saveSectionStates();
+            this.savePluginData();
         };
-
+    
         if (type === "Custom") {
+            const imageGrid = $el("div", {
+                style: {
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+                    gap: "10px",
+                    width: "100%"
+                }
+            });
+    
             const addButton = this.createAddCustomImageButton();
-            content.appendChild(addButton);
-
-            // Add custom images after the buttons
+            imageGrid.appendChild(addButton);
+    
             images.forEach(image => {
                 const imgElement = this.createImageElement(image);
-                content.appendChild(imgElement);
+                imageGrid.appendChild(imgElement);
             });
+    
+            content.appendChild(imageGrid);
+    
+            if (images.length > 0) {
+                const resetButton = this.createResetCustomImagesButton();
+                resetButton.style.marginTop = "10px";
+                content.appendChild(resetButton);
+            }
         } else {
+            const imageGrid = $el("div", {
+                style: {
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+                    gap: "10px",
+                    width: "100%"
+                }
+            });
+    
             images.forEach(image => {
                 const imgElement = this.createImageElement(image);
-                content.appendChild(imgElement);
+                imageGrid.appendChild(imgElement);
             });
+    
+            content.appendChild(imageGrid);
         }
-
+    
         section.appendChild(header);
         section.appendChild(content);
-
+    
         return section;
     }
 
@@ -933,15 +1183,15 @@ class PromptGallery {
                 alignItems: "center",
                 justifyContent: "flex-start",
                 cursor: "pointer",
-                width: "100px",  // Set a fixed width
-                height: "140px", // Set a fixed height to accommodate image and text
-                overflow: "hidden" // Hide overflow
+                width: "100px",
+                height: "140px",
+                overflow: "hidden"
             },
             onclick: () => this.copyToClipboard(image.name, image.tags)
         });
     
         const img = $el("img", {
-            src: image.path,
+            src: this.missingFiles.has(image.path) ? this.placeholderImageUrl : image.path,
             alt: image.name,
             style: {
                 width: "100px",
@@ -950,11 +1200,14 @@ class PromptGallery {
                 borderRadius: "5px"
             },
             onerror: () => {
-                img.src = this.placeholderImageUrl;
-                img.onerror = () => {
-                    console.error("Failed to load both original and placeholder images for:", image.name);
+                if (!this.missingFiles.has(image.path)) {
+                    this.missingFiles.add(image.path);
+                    img.src = this.placeholderImageUrl;
+                } else {
+                    // If even the placeholder fails to load, hide the image
                     img.style.display = 'none';
-                };
+                    console.error("Failed to load placeholder image for:", image.name);
+                }
             }
         });
     
@@ -964,11 +1217,11 @@ class PromptGallery {
                 marginTop: "5px",
                 fontSize: "12px",
                 textAlign: "center",
-                width: "100%", // Ensure the label takes full width
+                width: "100%",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 display: "-webkit-box",
-                "-webkit-line-clamp": "2", // Limit to 2 lines
+                "-webkit-line-clamp": "2",
                 "-webkit-box-orient": "vertical",
                 wordBreak: "break-word"
             }
