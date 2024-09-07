@@ -12,6 +12,7 @@ class PromptGallery {
         this.sortAscending = true;
         this.searchInput = this.createSearchInput();
         this.sortToggle = this.createSortToggle();
+        this.targetNodeDropdown = this.createTargetNodeDropdown();
         this.accordion = $el("div.prompt-accordion");
         this.yamlFiles = [
             { name: "PonyXl-artstyles.yaml", type: "Art Styles", skipLevels: 0, sections: null, order: 1 },
@@ -37,6 +38,7 @@ class PromptGallery {
                 this.searchInput,
                 this.sortToggle
             ]),
+            this.targetNodeDropdown,
             this.accordion
         ]);
     
@@ -296,6 +298,102 @@ class PromptGallery {
         });
     
         return container;
+    }
+
+    createTargetNodeDropdown() {
+        const dropdown = $el("select", {
+            id: "target-node-dropdown",
+            style: {
+                width: "100%",
+                padding: "8px",
+                marginBottom: "10px",
+                borderRadius: "4px",
+                border: "1px solid #ccc",
+                backgroundColor: "#2a2a2a",
+                color: "white"
+            }
+        });
+    
+        // Add the "None (Use Clipboard)" option
+        dropdown.appendChild($el("option", {
+            value: "clipboard",
+            textContent: "None (Use Clipboard)"
+        }));
+    
+        // Add a separator
+        dropdown.appendChild($el("option", {
+            disabled: true,
+            style: {
+                borderTop: "1px solid #ccc",
+                backgroundColor: "#1a1a1a"
+            }
+        }));
+    
+        const updateDropdownOptions = () => {
+            // Remove all options except the first two (default and separator)
+            while (dropdown.children.length > 2) {
+                dropdown.removeChild(dropdown.lastChild);
+            }
+    
+            const nodeOptions = [];
+    
+            app.graph._nodes.forEach(node => {
+                if (node.widgets) {
+                    node.widgets.forEach((widget, index) => {
+                        if (widget.type === "string" || widget.type === "text" || widget.type === "customtext") {
+                            nodeOptions.push({
+                                node: node,
+                                widget: widget,
+                                index: index
+                            });
+                        }
+                    });
+                }
+            });
+    
+            // Sort the options based on the specified criteria
+            nodeOptions.sort((a, b) => {
+                const aName = a.node.title.toLowerCase();
+                const bName = b.node.title.toLowerCase();
+                const aType = a.widget.type;
+                const bType = b.widget.type;
+    
+                // Helper function to check if a name contains specific words
+                const containsWords = (name, words) => words.some(word => name.includes(word));
+    
+                // Sorting based on the specified rules
+                if (containsWords(aName, ['positive', 'prompt']) && !containsWords(bName, ['positive', 'prompt'])) return -1;
+                if (containsWords(bName, ['positive', 'prompt']) && !containsWords(aName, ['positive', 'prompt'])) return 1;
+                if (aName.includes('positive') && !bName.includes('positive')) return -1;
+                if (bName.includes('positive') && !aName.includes('positive')) return 1;
+                if (aName.includes('prompt') && !bName.includes('prompt')) return -1;
+                if (bName.includes('prompt') && !aName.includes('prompt')) return 1;
+                if (aType === 'customtext' && bType !== 'customtext') return -1;
+                if (bType === 'customtext' && aType !== 'customtext') return 1;
+                if (aType === 'text' && bType !== 'text') return -1;
+                if (bType === 'text' && aType !== 'text') return 1;
+                if (aName.includes('negative') && !bName.includes('negative')) return 1;
+                if (bName.includes('negative') && !aName.includes('negative')) return -1;
+                return aName.localeCompare(bName);  // Alphabetical order for remaining items
+            });
+    
+            // Add sorted options to the dropdown
+            nodeOptions.forEach(option => {
+                const optionElement = $el("option", {
+                    value: `${option.node.id}:widget:${option.index}`,
+                    textContent: `${option.node.title} - ${option.widget.name}`
+                });
+                dropdown.appendChild(optionElement);
+            });
+        };
+    
+        // Initial population of dropdown
+        updateDropdownOptions();
+    
+        // Update options when the graph changes
+        app.graph.onNodeAdded = app.graph.onNodeRemoved = updateDropdownOptions;
+    
+        return dropdown;
     }
 
     setupDragAndDrop() {
@@ -1235,22 +1333,78 @@ class PromptGallery {
 
     copyToClipboard(imageName, tags) {
         let textToCopy = tags;
-        
-        // If tags is an object or array, convert it to a string
+       
         if (typeof tags === 'object') {
             textToCopy = JSON.stringify(tags);
         }
     
-        // Ensure textToCopy is a string and trim any whitespace
         textToCopy = String(textToCopy).trim();
     
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            console.log('Tags copied to clipboard');
-            this.showToast('success', 'Tags Copied!', `Tags for "${imageName}" copied to clipboard`);
-        }).catch(err => {
-            console.error('Failed to copy tags: ', err);
-            this.showToast('error', 'Copy Failed', `Failed to copy tags for "${imageName}"`);
-        });
+        // Function to clean the text
+        const cleanText = (text) => {
+            // Remove leading and trailing commas, spaces, and BREAK
+            text = text.replace(/^[,\s]+|[,\s]+$/g, '');
+            // Replace BREAK (case insensitive) with a period, handling various scenarios
+            text = text.replace(/\s*BREAK\s*(?:,\s*)?/gi, '. ');
+            // Remove any duplicate periods or comma-period combinations
+            text = text.replace(/\.{2,}/g, '.').replace(/,\s*\./g, '.');
+            // Ensure there's a space after each period or comma, but not at the very end
+            text = text.replace(/([.,])(?=\S)/g, '$1 ').trim();
+            return text;
+        };
+    
+        // Function to combine texts without introducing unwanted punctuation
+        const combineTexts = (existing, newText) => {
+            existing = cleanText(existing);
+            newText = cleanText(newText);
+            
+            if (!existing) return newText;
+            
+            // If existing text ends with a period, don't add a comma
+            if (existing.endsWith('.')) {
+                return existing + ' ' + newText;
+            } else {
+                return existing + ', ' + newText;
+            }
+        };
+    
+        // Clean the new text
+        textToCopy = cleanText(textToCopy);
+    
+        const targetNodeDropdown = document.getElementById("target-node-dropdown");
+        const selectedValue = targetNodeDropdown.value;
+    
+        if (selectedValue && selectedValue !== "clipboard") {
+            const [nodeId, type, index] = selectedValue.split(':');
+            const node = app.graph.getNodeById(parseInt(nodeId));
+            if (node && type === "widget") {
+                const widget = node.widgets[parseInt(index)];
+                if (widget && (widget.type === "string" || widget.type === "text" || widget.type === "customtext")) {
+                    // Combine existing text with new text
+                    widget.value = combineTexts(widget.value || "", textToCopy);
+                    
+                    if (node.onWidgetChanged) {
+                        node.onWidgetChanged(widget.name, widget.value);
+                    }
+                    // Mark the canvas as dirty to trigger a redraw
+                    app.graph.setDirtyCanvas(true, true);
+                    this.showToast('success', 'Tags Sent!', `Tags for "${imageName}" sent to ${node.title} - ${widget.name}`);
+                } else {
+                    this.showToast('error', 'Send Failed', `Failed to find appropriate widget for "${imageName}"`);
+                }
+            } else {
+                this.showToast('error', 'Send Failed', `Failed to send tags for "${imageName}"`);
+            }
+        } else {
+            // Handle clipboard option - simply copy the cleaned text
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                console.log('Tags copied to clipboard');
+                this.showToast('success', 'Tags Copied!', `Tags for "${imageName}" copied to clipboard`);
+            }).catch(err => {
+                console.error('Failed to copy tags: ', err);
+                this.showToast('error', 'Copy Failed', `Failed to copy tags for "${imageName}"`);
+            });
+        }
     }
 
     showToast(severity, summary, detail) {
