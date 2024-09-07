@@ -13,6 +13,9 @@ class PromptGallery {
         this.searchInput = this.createSearchInput();
         this.sortToggle = this.createSortToggle();
         this.targetNodeDropdown = this.createTargetNodeDropdown();
+        this.useSelectedNodeCheckbox = this.createUseSelectedNodeCheckbox();
+        this.randomPromptButton = this.createRandomPromptButton();
+        this.categoryCheckboxes = new Map();
         this.accordion = $el("div.prompt-accordion");
         this.yamlFiles = [
             { name: "PonyXl-artstyles.yaml", type: "Art Styles", skipLevels: 0, sections: null, order: 1 },
@@ -32,15 +35,37 @@ class PromptGallery {
         this.resetButton = this.createResetCustomImagesButton();
         this.missingFiles = new Set();
     
+        const dropdownContainer = $el("div", {
+            style: {
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px",
+                flexWrap: "nowrap"
+            }
+        }, [
+            $el("div", { 
+                style: { 
+                    flexGrow: 1, 
+                    flexBasis: "80%", 
+                    marginRight: "10px" 
+                } 
+            }, [this.targetNodeDropdown]),
+            this.useSelectedNodeCheckbox
+        ]);
+    
         this.element = $el("div.prompt-gallery-popup", [
             $el("h3", "Prompt Image Gallery"),
             $el("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" } }, [
                 this.searchInput,
                 this.sortToggle
             ]),
-            this.targetNodeDropdown,
+            dropdownContainer,
+            this.randomPromptButton,
             this.accordion
         ]);
+
+        this.categoryStates = {}; // To store checkbox states
     
         // Load plugin data and update
         this.loadPluginData().then(() => {
@@ -74,6 +99,61 @@ class PromptGallery {
         return button;
     }
 
+    createUseSelectedNodeCheckbox() {
+        const container = $el("div", {
+            style: {
+                display: "flex",
+                alignItems: "center",
+                marginLeft: "10px",
+                whiteSpace: "nowrap"
+            }
+        });
+    
+        const checkbox = $el("input", {
+            type: "checkbox",
+            id: "use-selected-node",
+            style: {
+                marginRight: "5px"
+            }
+        });
+    
+        const label = $el("div", {
+            style: {
+                fontSize: "12px",
+                lineHeight: "1",
+                textAlign: "center"
+            }
+        });
+    
+        label.innerHTML = "Active<br>Selection";
+    
+        container.appendChild(checkbox);
+        container.appendChild(label);
+    
+        return container;
+    }
+
+    createRandomPromptButton() {
+        return $el("button", {
+            className: "random-prompt-button",
+            textContent: "🎲 Random Prompt",
+            onclick: () => this.generateRandomPrompt(),
+            style: {
+                padding: "8px 12px",
+                backgroundColor: "#FF6A00",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "10px",
+                width: "100%"
+            }
+        });
+    }
+    
     async resetCustomImages() {
         if (confirm("Are you sure you want to reset all custom images? This action cannot be undone!")) {
             this.customImages = [];
@@ -93,6 +173,7 @@ class PromptGallery {
         const pluginData = {
             customImages: this.customImages,
             sectionStates: this.sectionStates,
+            categoryStates: this.categoryStates,
             sortAscending: this.sortAscending,
             noFilesWarningDismissed: this.noFilesWarningDismissed,
             downloadLinkDismissed: this.downloadLinkDismissed,
@@ -123,6 +204,7 @@ class PromptGallery {
                 const data = await response.json();
                 this.customImages = data.customImages || [];
                 this.sectionStates = data.sectionStates || {};
+                this.categoryStates = data.categoryStates || {};
                 this.sortAscending = data.sortAscending !== undefined ? data.sortAscending : true;
                 this.noFilesWarningDismissed = data.noFilesWarningDismissed || false;
                 this.downloadLinkDismissed = data.downloadLinkDismissed || false;
@@ -134,6 +216,7 @@ class PromptGallery {
                 console.log('No plugin data found. Starting with default values.');
                 this.customImages = [];
                 this.sectionStates = {};
+                this.categoryStates = {};
                 this.sortAscending = true;
                 this.noFilesWarningDismissed = false;
                 this.downloadLinkDismissed = false;
@@ -145,6 +228,7 @@ class PromptGallery {
             console.error('Error loading plugin data:', error);
             this.customImages = [];
             this.sectionStates = {};
+            this.categoryStates = {};
             this.sortAscending = true;
             this.noFilesWarningDismissed = false;
             this.downloadLinkDismissed = false;
@@ -310,9 +394,13 @@ class PromptGallery {
                 borderRadius: "4px",
                 border: "1px solid #ccc",
                 backgroundColor: "#2a2a2a",
-                color: "white"
+                color: "white",
+                textOverflow: "ellipsis"
             }
         });
+
+        // to make the dropdown options use the full width
+        dropdown.style.textOverflow = "ellipsis";
     
         // Add the "None (Use Clipboard)" option
         dropdown.appendChild($el("option", {
@@ -947,6 +1035,10 @@ class PromptGallery {
             this.accordion.innerHTML = "";
             this.filteredImages = this.allImages;
             this.sortAndDisplayImages();
+
+            // Show/hide the Random Prompt button based on available categories
+            const hasNonCustomCategories = this.allImages.some(category => category.type !== "Custom");
+            this.randomPromptButton.style.display = hasNonCustomCategories ? "block" : "none";
             
             setTimeout(() => {
                 this.setupDragAndDrop();
@@ -1172,7 +1264,7 @@ class PromptGallery {
             style: { marginBottom: "10px" },
             "data-type": type
         });
-    
+
         const header = $el("div.accordion-header", {
             style: {
                 cursor: "pointer",
@@ -1182,13 +1274,56 @@ class PromptGallery {
                 marginBottom: "5px",
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center"
+                alignItems: "center",
             }
         });
-        
-        const itemCount = type === "Custom" ? images.length + 1 : images.length;
-        const headerText = $el("span", { textContent: `${type} (${itemCount})` });
-        const isOpen = this.sectionStates[type] !== false;
+
+
+        if (type !== "Custom") {
+            const checkboxWrapper = $el("div", {
+                style: {
+                    display: "flex",
+                    alignItems: "center",
+                    height: "100%",
+                    marginRight: "10px"
+                }
+            });
+
+            const checkbox = $el("input", {
+                type: "checkbox",
+                title: "Include in Random Prompts",
+                style: {
+                    width: "21px",
+                    height: "21px",
+                    cursor: "pointer"
+                }
+            });
+
+            checkbox.checked = this.categoryStates[type] || false;
+
+            checkbox.addEventListener("change", (e) => {
+                e.stopPropagation(); // Prevent event from bubbling up to header
+                this.categoryStates[type] = e.target.checked;
+                this.savePluginData();
+
+                // Handle mutual exclusivity
+                if ((type === "Game Characters" || type === "Show Characters") && e.target.checked) {
+                    const otherType = type === "Game Characters" ? "Show Characters" : "Game Characters";
+                    const otherCheckbox = this.categoryCheckboxes.get(otherType);
+                    if (otherCheckbox) {
+                        otherCheckbox.checked = false;
+                        this.categoryStates[otherType] = false;
+                        this.savePluginData();
+                    }
+                }
+            });
+
+            checkboxWrapper.appendChild(checkbox);
+            header.appendChild(checkboxWrapper);
+            this.categoryCheckboxes.set(type, checkbox);
+        }
+
+        const headerText = $el("span", { textContent: `${type} (${images.length})` });
         const indicator = $el("span", { 
             textContent: this.sectionStates[type] ? "-" : "+",
             style: {
@@ -1199,10 +1334,10 @@ class PromptGallery {
         
         header.appendChild(headerText);
         header.appendChild(indicator);
-    
+
         const content = $el("div.accordion-content", {
             style: {
-                display: isOpen ? "flex" : "none",
+                display: this.sectionStates[type] ? "flex" : "none",
                 flexDirection: "column",
                 gap: "10px",
                 padding: "10px",
@@ -1210,19 +1345,21 @@ class PromptGallery {
                 borderRadius: "4px"
             }
         });
-    
-        header.onclick = () => {
-            if (content.style.display === "none") {
-                content.style.display = "flex";
-                indicator.textContent = "-";
-                this.sectionStates[type] = true;
-            } else {
-                content.style.display = "none";
-                indicator.textContent = "+";
-                this.sectionStates[type] = false;
+
+        header.addEventListener("click", (e) => {
+            if (e.target.type !== "checkbox") {
+                if (content.style.display === "none") {
+                    content.style.display = "flex";
+                    indicator.textContent = "-";
+                    this.sectionStates[type] = true;
+                } else {
+                    content.style.display = "none";
+                    indicator.textContent = "+";
+                    this.sectionStates[type] = false;
+                }
+                this.savePluginData();
             }
-            this.savePluginData();
-        };
+        });
     
         if (type === "Custom") {
             const imageGrid = $el("div", {
@@ -1331,6 +1468,76 @@ class PromptGallery {
         return imgContainer;
     }
 
+    cleanText(text) {
+        // Remove leading and trailing commas, spaces, and BREAK
+        text = text.replace(/^[,\s]+|[,\s]+$/g, '');
+        // Replace BREAK (case insensitive) with a period, handling various scenarios
+        text = text.replace(/\s*BREAK\s*(?:,\s*)?/gi, '. ');
+        // Remove any duplicate periods or comma-period combinations
+        text = text.replace(/\.{2,}/g, '.').replace(/,\s*\./g, '.');
+        // Ensure there's a space after each period or comma, but not at the very end
+        text = text.replace(/([.,])(?=\S)/g, '$1 ').trim();
+        return text;
+    }
+
+    combineTexts(existing, newText) {
+        existing = this.cleanText(existing);
+        newText = this.cleanText(newText);
+        
+        if (!existing) return newText;
+        
+        // If existing text ends with a period, don't add a comma
+        if (existing.endsWith('.')) {
+            return existing + ' ' + newText;
+        } else {
+            return existing + ', ' + newText;
+        }
+    }
+
+    generateRandomPrompt() {
+        let randomPrompt = "";
+
+        const selectedCategories = Array.from(this.categoryCheckboxes.entries())
+            .filter(([_, checkbox]) => {
+                console.log(`Category: ${_}, Checked: ${checkbox.checked}`);
+                return checkbox.checked;
+            })
+            .map(([type, _]) => type);
+
+        if (selectedCategories.length === 0) {
+            console.log("No categories selected");
+            this.showToast('warning', 'No Categories Selected', 'Please select at least one category for random prompts.');
+            return;
+        }
+
+        for (const category of selectedCategories) {
+            console.log(`Processing category: ${category}`);
+            const categoryImages = this.allImages.filter(img => img.type === category);
+            console.log(`Found ${categoryImages.length} images for category: ${category}`);
+
+            if (categoryImages.length > 0) {
+                const randomImage = categoryImages[Math.floor(Math.random() * categoryImages.length)];
+                console.log("Random image selected:", randomImage);
+
+                const cleanedTags = this.cleanText(randomImage.tags);
+                console.log("Cleaned tags:", cleanedTags);
+
+                randomPrompt = this.combineTexts(randomPrompt, cleanedTags);
+                console.log("Current random prompt:", randomPrompt);
+            } else {
+                console.log(`No images found for category: ${category}`);
+            }
+        }
+
+        if (randomPrompt) {
+            console.log("Final random prompt:", randomPrompt);
+            this.copyToClipboard("Random Prompt", randomPrompt);
+        } else {
+            console.log("No random prompt generated");
+            this.showToast('error', 'No Images Found', 'No images were found in the selected categories. Please try selecting different categories.');
+        }
+    }
+
     copyToClipboard(imageName, tags) {
         let textToCopy = tags;
        
@@ -1339,64 +1546,57 @@ class PromptGallery {
         }
     
         textToCopy = String(textToCopy).trim();
-    
-        // Function to clean the text
-        const cleanText = (text) => {
-            // Remove leading and trailing commas, spaces, and BREAK
-            text = text.replace(/^[,\s]+|[,\s]+$/g, '');
-            // Replace BREAK (case insensitive) with a period, handling various scenarios
-            text = text.replace(/\s*BREAK\s*(?:,\s*)?/gi, '. ');
-            // Remove any duplicate periods or comma-period combinations
-            text = text.replace(/\.{2,}/g, '.').replace(/,\s*\./g, '.');
-            // Ensure there's a space after each period or comma, but not at the very end
-            text = text.replace(/([.,])(?=\S)/g, '$1 ').trim();
-            return text;
-        };
-    
-        // Function to combine texts without introducing unwanted punctuation
-        const combineTexts = (existing, newText) => {
-            existing = cleanText(existing);
-            newText = cleanText(newText);
-            
-            if (!existing) return newText;
-            
-            // If existing text ends with a period, don't add a comma
-            if (existing.endsWith('.')) {
-                return existing + ' ' + newText;
-            } else {
-                return existing + ', ' + newText;
-            }
-        };
-    
+        
         // Clean the new text
-        textToCopy = cleanText(textToCopy);
+        textToCopy = this.cleanText(textToCopy);
     
+        const useSelectedNode = document.getElementById("use-selected-node").checked;
         const targetNodeDropdown = document.getElementById("target-node-dropdown");
         const selectedValue = targetNodeDropdown.value;
+  
+        let targetNode = null;
+        let targetWidget = null;
     
-        if (selectedValue && selectedValue !== "clipboard") {
-            const [nodeId, type, index] = selectedValue.split(':');
-            const node = app.graph.getNodeById(parseInt(nodeId));
-            if (node && type === "widget") {
-                const widget = node.widgets[parseInt(index)];
-                if (widget && (widget.type === "string" || widget.type === "text" || widget.type === "customtext")) {
-                    // Combine existing text with new text
-                    widget.value = combineTexts(widget.value || "", textToCopy);
-                    
-                    if (node.onWidgetChanged) {
-                        node.onWidgetChanged(widget.name, widget.value);
-                    }
-                    // Mark the canvas as dirty to trigger a redraw
-                    app.graph.setDirtyCanvas(true, true);
-                    this.showToast('success', 'Tags Sent!', `Tags for "${imageName}" sent to ${node.title} - ${widget.name}`);
+        if (useSelectedNode) {
+            
+            // Check if there are any selected nodes
+            const selectedNodesKeys = Object.keys(app.canvas.selected_nodes);
+            if (selectedNodesKeys.length > 0) {
+                // Get the first selected node
+                targetNode = app.canvas.selected_nodes[selectedNodesKeys[0]];
+                
+                if (targetNode.widgets) {
+                    targetWidget = targetNode.widgets.find(w => ['string', 'text', 'customtext'].includes(w.type));
                 } else {
-                    this.showToast('error', 'Send Failed', `Failed to find appropriate widget for "${imageName}"`);
+                    console.log("Debug: No widgets found in the selected node");
                 }
             } else {
-                this.showToast('error', 'Send Failed', `Failed to send tags for "${imageName}"`);
+                console.log("Debug: No node is currently selected on the canvas");
             }
+        } else if (selectedValue && selectedValue !== "clipboard") {
+            const [nodeId, type, index] = selectedValue.split(':');
+            targetNode = app.graph.getNodeById(parseInt(nodeId));
+            if (targetNode && type === "widget") {
+                targetWidget = targetNode.widgets[parseInt(index)];
+            }
+        }
+    
+        if (targetNode && targetWidget) {
+            // Combine existing text with new text
+            let newValue = this.combineTexts(targetWidget.value || "", textToCopy);
+            targetWidget.value = newValue;
+            
+            if (targetNode.onWidgetChanged) {
+                console.log("Debug: Calling onWidgetChanged");
+                targetNode.onWidgetChanged(targetWidget.name, targetWidget.value);
+            }
+            
+            // Mark the canvas as dirty to trigger a redraw
+            app.graph.setDirtyCanvas(true, true);
+            
+            this.showToast('success', 'Tags Sent!', `Tags for "${imageName}" sent to ${targetNode.title} - ${targetWidget.name}`);
         } else {
-            // Handle clipboard option - simply copy the cleaned text
+            // Fallback to clipboard
             navigator.clipboard.writeText(textToCopy).then(() => {
                 console.log('Tags copied to clipboard');
                 this.showToast('success', 'Tags Copied!', `Tags for "${imageName}" copied to clipboard`);
