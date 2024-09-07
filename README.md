@@ -62,6 +62,7 @@ I aslo thought it would be cool to let people play with something that's not LoR
 
 **Comfy Org (Duh)**
 - Special shoutout to ltdrdata for helping me get things out of the Input folder 💙
+  
 https://github.com/comfyanonymous/ComfyUI
 
 ### Compatability
