@@ -34,14 +34,13 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - If you use Pony in particular the Art Style category makes it super easy to see what various tags can do!
 
 ## Limitations
-- Uses local storage for setting and metadata, not terrible but a bummer if you change browsers or computers.
 - Doesn't do well getting metadata from complex workflows or prompts in non-core nodes.
 
 ## Roadmap
 - [x] Learn new FE
 - [x] Move promptImages out of Input - thanks ltdrdata!
+- [x] Implement on-disk storage for metadata (move away from local storage)
 - [ ] Exposing plugin options via settings
-- [ ] Implement on-disk storage for metadata (move away from local storage)
 - [ ] Easier support for additional "wildcard" packages
 - [ ] Prompt stacking? (build a prompt by clicking on various pictures)
 - [ ] Better prompt handling and QoL enhancements
