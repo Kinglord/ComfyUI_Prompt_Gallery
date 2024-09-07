@@ -5,6 +5,9 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 
 ![image](https://github.com/user-attachments/assets/0f5f2f25-6c4a-4ab5-bae0-4ce4d2b58836)
 
+## Updates
+- Added a bunch of new features and QoL improvements as tracked by the roadmap. Wanting to get settings operational before I finally submit this to the registry, etc. With the new wildcard prompt generator if you download all the support yaml packs you have quick and easy access to over 3 trillion combinations, not too shabby! 😁
+
 ## Features
 - Snazzy sidebar menu that holds images and metadata for prompt building
 - Built in support for all of [Navimixu's Wildcard Files](https://civitai.com/models/615967/ponyxl-wildcards-vault)
@@ -44,8 +47,8 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - [ ] Exposing plugin options via settings
 - [ ] Easier support for additional "wildcard" packages
 - [x] Prompt stacking? (build a prompt by clicking on various images) - using "injection mode"
-- [ ] Better prompt handling and QoL enhancements
-- [ ] Some actual "wildcard" style features
+- [x] Better prompt handling and QoL enhancements
+- [x] Some actual "wildcard" style features
 - [ ] Whatever bugs you find / features you submit
 
 ## Why
