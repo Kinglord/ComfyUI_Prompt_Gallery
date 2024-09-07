@@ -28,6 +28,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 
 ## Usage
 - Click on any image in the gallery to copy its prompt tags to the clipboard to paste into your workflow.
+  - You can also select a node in your WF you want to send the text to "automagically" for super easy prompt building!
 - Add some images to the sidebar yourself via the Custom category.
 - You can also drag and drop images with embedded workflows onto the canvas to load their workflow.
 - With some editing can support other YAML files, if you're cool like that.
@@ -42,7 +43,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - [x] Implement on-disk storage for metadata (move away from local storage)
 - [ ] Exposing plugin options via settings
 - [ ] Easier support for additional "wildcard" packages
-- [ ] Prompt stacking? (build a prompt by clicking on various pictures)
+- [x] Prompt stacking? (build a prompt by clicking on various images) - using "injection mode"
 - [ ] Better prompt handling and QoL enhancements
 - [ ] Some actual "wildcard" style features
 - [ ] Whatever bugs you find / features you submit
