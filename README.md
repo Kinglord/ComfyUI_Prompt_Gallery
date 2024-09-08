@@ -6,6 +6,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 ![image](https://github.com/user-attachments/assets/0f5f2f25-6c4a-4ab5-bae0-4ce4d2b58836)
 
 ## Updates
+- Options are in! Bit bare bones ATM, need to make a few more updates and support a new image pack, but then it's registry time.
 - Added a bunch of new features and QoL improvements as tracked by the roadmap. Wanting to get settings operational before I finally submit this to the registry, etc. With the new wildcard prompt generator if you download all the support yaml packs you have quick and easy access to over 3 trillion combinations, not too shabby! 😁
 
 ## Features
@@ -44,11 +45,11 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - [x] Learn new FE
 - [x] Move promptImages out of Input - thanks ltdrdata!
 - [x] Implement on-disk storage for metadata (move away from local storage)
-- [ ] Exposing plugin options via settings
-- [ ] Easier support for additional "wildcard" packages
+- [x] Exposing plugin options via settings
 - [x] Prompt stacking? (build a prompt by clicking on various images) - using "injection mode"
 - [x] Better prompt handling and QoL enhancements
 - [x] Some actual "wildcard" style features
+- [ ] Easier support for additional "wildcard" packages - On Demand / TBD (If you want packs supported just msg me, I don't think I'll add anymore unless requested)
 - [ ] Whatever bugs you find / features you submit
 
 ## Why
