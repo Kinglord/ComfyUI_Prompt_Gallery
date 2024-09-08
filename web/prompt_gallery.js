@@ -7,6 +7,8 @@ import * as pngMetadata from "../../../scripts/metadata/png.js";
 class PromptGallery {
     constructor(app) {
         this.app = app;
+        this.maxThumbnailSize = app.ui.settings.getSettingValue("Prompt Gallery._General.maxThumbnailSize", 100);
+        this.displayLabels = app.ui.settings.getSettingValue("Prompt Gallery._General.displayLabels", true);
         this.allImages = [];
         this.filteredImages = [];
         this.sortAscending = true;
@@ -16,6 +18,14 @@ class PromptGallery {
         this.useSelectedNodeCheckbox = this.createUseSelectedNodeCheckbox();
         this.randomPromptButton = this.createRandomPromptButton();
         this.categoryCheckboxes = new Map();
+        this.categories = [
+            "Art Styles", "Game Characters", "Show Characters", 
+            "Female Body", "Poses", "Expressions", "Scenes"
+        ];
+/*         this.categorySortOrder = this.yamlFiles.map(file => ({
+            name: file.type,
+            order: file.order
+        })); */
         this.accordion = $el("div.prompt-accordion");
         this.yamlFiles = [
             { name: "PonyXl-artstyles.yaml", type: "Art Styles", skipLevels: 0, sections: null, order: 1 },
@@ -34,6 +44,31 @@ class PromptGallery {
         this.debouncedSaveState = this.debounce(this.savePluginData.bind(this), 600000); // 10 minute delay
         this.resetButton = this.createResetCustomImagesButton();
         this.missingFiles = new Set();
+
+        // Initialize category order from YAML files
+        this.yamlFiles.forEach(file => {
+            const settingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}`;
+            const currentValue = this.app.ui.settings.getSettingValue(settingId, null);
+            if (currentValue === null) {
+                this.app.ui.settings.setSettingValue(settingId, file.order);
+            }
+        });
+
+        // Initialize Female Body sub-categories
+        const femaleBodySubCategories = ["Build", "Race"];
+        const femaleBodyFile = this.yamlFiles.find(file => file.type === "Female Body");
+        if (femaleBodyFile) {
+            femaleBodySubCategories.forEach((subCategory, index) => {
+                const settingId = `Prompt Gallery.Category Order.FemaleBody_${subCategory}`;
+                const currentValue = this.app.ui.settings.getSettingValue(settingId, null);
+                if (currentValue === null) {
+                    // Use index + 1 as a default order if you want sub-categories to be ordered after the main category
+                    this.app.ui.settings.setSettingValue(settingId, femaleBodyFile.order + index + 1);
+                }
+            });
+        }
+    
+        this.updateCategoryOrder();
     
         const dropdownContainer = $el("div", {
             style: {
@@ -286,8 +321,8 @@ class PromptGallery {
     createAddCustomImageButton() {
         const button = $el("div", {
             style: {
-                width: "100px",
-                height: "100px",
+                width: `${this.maxThumbnailSize}px`,
+                height: `${this.maxThumbnailSize}px`,
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
@@ -299,27 +334,28 @@ class PromptGallery {
             },
             onclick: () => this.showAddCustomImageDialog()
         });
-
+    
         const plusSign = $el("div", {
             textContent: "+",
             style: {
-                fontSize: "40px",
+                fontSize: `${Math.max(20, this.maxThumbnailSize / 3)}px`,
+                lineHeight: "1",
                 color: "#ccc"
             }
         });
-
+    
         const addText = $el("div", {
             textContent: "Add",
             style: {
                 marginTop: "5px",
-                fontSize: "12px",
+                fontSize: `${Math.max(12, this.maxThumbnailSize / 8)}px`,
                 color: "#ccc"
             }
         });
-
+    
         button.appendChild(plusSign);
         button.appendChild(addText);
-
+    
         return button;
     }
 
@@ -546,6 +582,56 @@ class PromptGallery {
         console.log("Handling files:", files);
         //[...files].forEach(file => this.uploadAndProcessFile(file));
         [...new Set(files)].forEach(file => this.uploadAndProcessFile(file));
+    }
+
+    updateLabelDisplay(display) {
+        this.displayLabels = display;
+        this.update();
+    }
+
+    updateThumbnailSize(newSize) {
+        this.maxThumbnailSize = newSize;
+        this.update(); // Trigger a re-render of the gallery
+    }
+
+    updateCategorySortOrder(newOrder) {
+        this.categorySortOrder = newOrder;
+        this.update();
+    }
+
+    updateCategoryOrder() {
+        //console.log("Updating category order");
+        const orderMap = new Map();
+    
+        // Handle all categories and subcategories uniformly
+        this.categories.forEach(category => {
+            if (category === "Female Body") {
+                const subCategories = ["Build", "Race"];
+                subCategories.forEach(subCategory => {
+                    const settingId = `Prompt Gallery.Category Order.FemaleBody_${subCategory}`;
+                    const userOrder = this.app.ui.settings.getSettingValue(settingId, 0);
+                    //console.log(`Female Body - ${subCategory}: userOrder = ${userOrder}`);
+                    if (userOrder > 0) {
+                        orderMap.set(`Female Body - ${subCategory}`, userOrder);
+                    }
+                });
+            } else {
+                const settingId = `Prompt Gallery.Category Order.${category.replace(/\s+/g, '')}`;
+                const userOrder = this.app.ui.settings.getSettingValue(settingId, 0);
+                //console.log(`${category}: userOrder = ${userOrder}`);
+                if (userOrder > 0) {
+                    orderMap.set(category, userOrder);
+                }
+            }
+        });
+    
+        this.categorySortOrder = Array.from(orderMap.entries())
+            .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+            .map(([name]) => name);
+    
+        //console.log("Updated category order:", this.categorySortOrder);
+    
+        this.update();
     }
 
     showAddCustomImageDialog() {
@@ -910,39 +996,46 @@ class PromptGallery {
     
         // Always include the Custom category
         groupedImages["Custom"] = customImagesToDisplay;
-    
-        const categoryOrder = new Map(this.yamlFiles.flatMap(file => {
-            const orders = [[file.type, file.order]];
-            if (file.sections) {
-                Object.values(file.sections).forEach((sectionName, index) => {
-                    orders.push([sectionName, file.order + index / 100]);
-                });
-            }
-            return orders;
-        }));
+
+        //console.log("Starting sortAndDisplayImages");
+        //console.log("Grouped Images:", groupedImages);
+        //console.log("Current categorySortOrder:", this.categorySortOrder);
     
         const categories = Object.keys(groupedImages).sort((a, b) => {
             if (a === "Custom") return 1;
             if (b === "Custom") return -1;
-            const orderA = categoryOrder.get(a) || Infinity;
-            const orderB = categoryOrder.get(b) || Infinity;
-            return orderA - orderB;
+        
+            // If dealing with subcategories of "Female Body", prepend "Female Body - " to the subcategory names
+            const normalizedA = a === "Build" || a === "Race" ? `Female Body - ${a}` : a;
+            const normalizedB = b === "Build" || b === "Race" ? `Female Body - ${b}` : b;
+        
+            const indexA = this.categorySortOrder.indexOf(normalizedA);
+            const indexB = this.categorySortOrder.indexOf(normalizedB);
+        
+            //console.log(`Order index for ${a} (normalized: ${normalizedA}): ${indexA}`);
+            //console.log(`Order index for ${b} (normalized: ${normalizedB}): ${indexB}`);
+        
+            if (indexA === -1 && indexB === -1) return a.localeCompare(b);  // Default alphabetical order if both are not found
+            if (indexA === -1) return 1;  // If A is not found, B goes first
+            if (indexB === -1) return -1; // If B is not found, A goes first
+            return indexA - indexB;       // Sort by the index in the categorySortOrder
         });
     
+        //console.log("Sorted Categories:", categories);
+    
         for (const category of categories) {
+            //console.log(`Processing category: ${category}`);
             const images = groupedImages[category];
             const sortedImages = [...images].sort((a, b) => {
                 return this.sortAscending 
                     ? a.name.localeCompare(b.name)
                     : b.name.localeCompare(a.name);
             });
-    
-            // Always create section for Custom, even if empty
-            if (sortedImages.length > 0 || category === "Custom") {
-                const accordionSection = this.createAccordionSection(category, sortedImages);
-                this.accordion.appendChild(accordionSection);
-            }
+            const accordionSection = this.createAccordionSection(category, sortedImages);
+            this.accordion.appendChild(accordionSection);
         }
+    
+        //console.log("Finished sortAndDisplayImages");
     
         this.setupDragAndDrop();
     }
@@ -1264,7 +1357,7 @@ class PromptGallery {
             style: { marginBottom: "10px" },
             "data-type": type
         });
-
+    
         const header = $el("div.accordion-header", {
             style: {
                 cursor: "pointer",
@@ -1277,8 +1370,7 @@ class PromptGallery {
                 alignItems: "center",
             }
         });
-
-
+    
         if (type !== "Custom") {
             const checkboxWrapper = $el("div", {
                 style: {
@@ -1288,7 +1380,7 @@ class PromptGallery {
                     marginRight: "10px"
                 }
             });
-
+    
             const checkbox = $el("input", {
                 type: "checkbox",
                 title: "Include in Random Prompts",
@@ -1298,14 +1390,14 @@ class PromptGallery {
                     cursor: "pointer"
                 }
             });
-
+    
             checkbox.checked = this.categoryStates[type] || false;
-
+    
             checkbox.addEventListener("change", (e) => {
                 e.stopPropagation(); // Prevent event from bubbling up to header
                 this.categoryStates[type] = e.target.checked;
                 this.savePluginData();
-
+    
                 // Handle mutual exclusivity
                 if ((type === "Game Characters" || type === "Show Characters") && e.target.checked) {
                     const otherType = type === "Game Characters" ? "Show Characters" : "Game Characters";
@@ -1317,12 +1409,12 @@ class PromptGallery {
                     }
                 }
             });
-
+    
             checkboxWrapper.appendChild(checkbox);
             header.appendChild(checkboxWrapper);
             this.categoryCheckboxes.set(type, checkbox);
         }
-
+    
         const headerText = $el("span", { textContent: `${type} (${images.length})` });
         const indicator = $el("span", { 
             textContent: this.sectionStates[type] ? "-" : "+",
@@ -1334,7 +1426,7 @@ class PromptGallery {
         
         header.appendChild(headerText);
         header.appendChild(indicator);
-
+    
         const content = $el("div.accordion-content", {
             style: {
                 display: this.sectionStates[type] ? "flex" : "none",
@@ -1345,7 +1437,7 @@ class PromptGallery {
                 borderRadius: "4px"
             }
         });
-
+    
         header.addEventListener("click", (e) => {
             if (e.target.type !== "checkbox") {
                 if (content.style.display === "none") {
@@ -1361,47 +1453,31 @@ class PromptGallery {
             }
         });
     
-        if (type === "Custom") {
-            const imageGrid = $el("div", {
-                style: {
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
-                    gap: "10px",
-                    width: "100%"
-                }
-            });
+        const imageGrid = $el("div", {
+            style: {
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "10px",
+                width: "100%"
+            }
+        });
     
+        if (type === "Custom") {
             const addButton = this.createAddCustomImageButton();
             imageGrid.appendChild(addButton);
+        }
     
-            images.forEach(image => {
-                const imgElement = this.createImageElement(image);
-                imageGrid.appendChild(imgElement);
-            });
+        images.forEach(image => {
+            const imgElement = this.createImageElement(image);
+            imageGrid.appendChild(imgElement);
+        });
     
-            content.appendChild(imageGrid);
+        content.appendChild(imageGrid);
     
-            if (images.length > 0) {
-                const resetButton = this.createResetCustomImagesButton();
-                resetButton.style.marginTop = "10px";
-                content.appendChild(resetButton);
-            }
-        } else {
-            const imageGrid = $el("div", {
-                style: {
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
-                    gap: "10px",
-                    width: "100%"
-                }
-            });
-    
-            images.forEach(image => {
-                const imgElement = this.createImageElement(image);
-                imageGrid.appendChild(imgElement);
-            });
-    
-            content.appendChild(imageGrid);
+        if (type === "Custom" && images.length > 0) {
+            const resetButton = this.createResetCustomImagesButton();
+            resetButton.style.marginTop = "10px";
+            content.appendChild(resetButton);
         }
     
         section.appendChild(header);
@@ -1418,8 +1494,8 @@ class PromptGallery {
                 alignItems: "center",
                 justifyContent: "flex-start",
                 cursor: "pointer",
-                width: "100px",
-                height: "140px",
+                width: `${this.maxThumbnailSize}px`,
+                height: this.displayLabels ? `${this.maxThumbnailSize + 40}px` : `${this.maxThumbnailSize}px`,
                 overflow: "hidden"
             },
             onclick: () => this.copyToClipboard(image.name, image.tags)
@@ -1429,8 +1505,8 @@ class PromptGallery {
             src: this.missingFiles.has(image.path) ? this.placeholderImageUrl : image.path,
             alt: image.name,
             style: {
-                width: "100px",
-                height: "100px",
+                width: `${this.maxThumbnailSize}px`,
+                height: `${this.maxThumbnailSize}px`,
                 objectFit: "cover",
                 borderRadius: "5px"
             },
@@ -1446,24 +1522,26 @@ class PromptGallery {
             }
         });
     
-        const label = $el("span", {
-            textContent: image.name,
-            style: {
-                marginTop: "5px",
-                fontSize: "12px",
-                textAlign: "center",
-                width: "100%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                display: "-webkit-box",
-                "-webkit-line-clamp": "2",
-                "-webkit-box-orient": "vertical",
-                wordBreak: "break-word"
-            }
-        });
-    
         imgContainer.appendChild(img);
-        imgContainer.appendChild(label);
+
+        if (this.displayLabels) {
+            const label = $el("span", {
+                textContent: image.name,
+                style: {
+                    marginTop: "5px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    width: "100%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "-webkit-box",
+                    "-webkit-line-clamp": "2",
+                    "-webkit-box-orient": "vertical",
+                    wordBreak: "break-word"
+                }
+            });
+            imgContainer.appendChild(label);
+        }
     
         return imgContainer;
     }
@@ -1615,13 +1693,151 @@ class PromptGallery {
             life: 5000
         });
     }
+
+    // I'm going to try and make a new UI for the SETTINGS page, wish me luck
+    createCategorySortUI() {
+        const container = $el("div", {
+            className: "category-sort-container",
+            style: {
+                marginTop: "10px",
+                border: "1px solid #ccc",
+                padding: "10px",
+                borderRadius: "5px"
+            }
+        });
+
+        const title = $el("h3", {
+            textContent: "Category Sort Order",
+            style: {
+                marginBottom: "10px"
+            }
+        });
+        container.appendChild(title);
+
+        const list = $el("ul", {
+            className: "category-sort-list",
+            style: {
+                listStyle: "none",
+                padding: 0
+            }
+        });
+
+        this.categorySortOrder.forEach(category => {
+            if (category !== "Custom") {
+                const item = $el("li", {
+                    textContent: category,
+                    draggable: true,
+                    style: {
+                        padding: "5px",
+                        marginBottom: "5px",
+                        backgroundColor: "#2a2a2a",
+                        cursor: "move"
+                    }
+                });
+                item.addEventListener("dragstart", e => {
+                    e.dataTransfer.setData("text/plain", category);
+                });
+                item.addEventListener("dragover", e => {
+                    e.preventDefault();
+                });
+                item.addEventListener("drop", e => {
+                    e.preventDefault();
+                    const draggedCategory = e.dataTransfer.getData("text");
+                    const newOrder = this.categorySortOrder.filter(c => c !== draggedCategory);
+                    const dropIndex = newOrder.indexOf(category);
+                    newOrder.splice(dropIndex, 0, draggedCategory);
+                    this.updateCategorySortOrder(newOrder);
+                    this.createCategorySortUI(); // Recreate the UI with the new order
+                    // app.ui.settings.updateSettingValue("Prompt Gallery.Category.categorySortOrder", newOrder.join(',')); - Need to refactor this
+                });
+                list.appendChild(item);
+            }
+        });
+
+        container.appendChild(list);
+        return container;
+    }
+
 }
 
 app.registerExtension({
     name: "comfy.prompt.gallery",
     async setup() {
-        const gallery = new PromptGallery(app);
+        app.ui.settings.addSetting({
+            id: "Prompt Gallery._General.maxThumbnailSize",
+            name: "Max Thumbnail Size",
+            type: "slider",
+            attrs: { min: 50, max: 250, step: 25 },
+            defaultValue: 100,
+            onChange: (newVal, oldVal) => {
+                if (app.promptGallery) {
+                    app.promptGallery.updateThumbnailSize(newVal);
+                }
+            },
+        });
 
+        app.ui.settings.addSetting({
+            id: "Prompt Gallery._General.displayLabels",
+            name: "Display Image Labels",
+            type: "boolean",
+            defaultValue: true,
+            onChange: (newVal, oldVal) => {
+                if (app.promptGallery) {
+                    app.promptGallery.updateLabelDisplay(newVal);
+                }
+            },
+        });
+
+        const categories = [
+            "Art Styles", "Game Characters", "Show Characters", 
+            "Female Body", "Poses", "Expressions", "Scenes"
+        ];
+
+        // Sort categories alphabetically for the settings page
+        const sortedCategories = [...categories].sort((a, b) => b.localeCompare(a));
+
+        sortedCategories.forEach((category) => {
+            if (category === "Female Body") {
+                const subCategories = ["Build", "Race"];
+                subCategories.forEach((subCategory, index) => {
+                    const settingId = `Prompt Gallery.Category Order.FemaleBody_${subCategory}`;
+                    app.ui.settings.addSetting({
+                        id: settingId,
+                        name: `${category} - ${subCategory}`,
+                        type: "number",
+                        defaultValue: 0,
+                        min: 0,
+                        step: 1,
+                        onChange: (newVal, oldVal) => {
+                            //console.log(`${category} - ${subCategory} Order changed from ${oldVal} to ${newVal}, saved as ${settingId}`);
+                            if (app.promptGallery) {
+                                app.promptGallery.updateCategoryOrder();
+                            }
+                        },
+                    });
+                });
+            } else {
+                const settingId = `Prompt Gallery.Category Order.${category.replace(/\s+/g, '')}`;
+                app.ui.settings.addSetting({
+                    id: settingId,
+                    name: `${category}`,
+                    type: "number",
+                    defaultValue: 0, // We'll set the actual default in the PromptGallery constructor
+                    min: 0,
+                    step: 1,
+                    onChange: (newVal, oldVal) => {
+                        if (app.promptGallery) {
+                            app.promptGallery.updateCategoryOrder();
+                        }
+                    },
+                });
+            }
+        });
+
+        const gallery = new PromptGallery(app);
+        app.promptGallery = gallery;
+
+        // Registering the sidebar tab
         app.extensionManager.registerSidebarTab({
             id: "prompt.gallery",
             icon: "pi pi-id-card",
