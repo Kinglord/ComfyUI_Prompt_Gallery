@@ -22,7 +22,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 ## Installation
 ### Registry
 - Registry coming soon, will update once it's live, if you want it before then you can do the manual steps below.
-- Download any or all (or none if you're gonna be like that) of [Navimixu's archives](https://civitai.com/models/615967/ponyxl-wildcards-vault) and extract them into the `promptImages` folder (located inside this custom node directory). If you do it right your folder should look like this with all the images in various subfolders under `thumbnails` - done properly the folder will look something like this (you don't have to keep the zip files):
+- Download any or all (or none if you're gonna be like that) of [Navimixu's archives](https://civitai.com/models/615967/ponyxl-wildcards-vault) and extract them into the `promptImages` folder (located inside this custom node directory). If you do it right your folder should look like this with all the pack images in various subfolders under `thumbnails` - (you don't have to keep the zip files):
 
 ![image](https://github.com/user-attachments/assets/811a1c7e-cd09-4f3d-8053-41989fb9f170)
   
@@ -36,6 +36,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 ## Usage
 - Click on any image in the gallery to copy its prompt tags to the node of your choice or to the clipboard for easy pasting.
   - You can also select any node in your WF you want to send the text to it "automagically" for super easy prompt building!
+
 ![image](https://github.com/user-attachments/assets/b6988be9-e904-47a6-b6bf-e3b1b447d8b3)
 - Choose from any assortment of categories to build your very own complete "wildcard" style prompts. 🎲
 - Add some images to the sidebar yourself via the Custom category.
