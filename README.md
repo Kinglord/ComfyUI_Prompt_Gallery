@@ -20,8 +20,8 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - Finished all core elements on the roadmap and ready to call this "v1.0" and pushing it to the official registry.
 
 ## Installation
-### Registry
-- Install it via the Registry - https://registry.comfy.org/publishers/kinglord/nodes/comfyui_prompt_gallery
+### Registry / Manager
+- Install it via the Registry - https://registry.comfy.org/publishers/kinglord/nodes/comfyui_prompt_gallery or the ComfyUI Manager (search for Prompt Gallery)
 - Make sure you are using the new menu
 - Download any or all (or none if you're gonna be like that) of [Navimixu's archives](https://civitai.com/models/615967/ponyxl-wildcards-vault) and extract them into the `promptImages` folder (located inside this custom node directory). If you do it right your folder should look like this with all the pack images in various subfolders under `thumbnails` - (you don't have to keep the zip files):
 
