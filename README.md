@@ -45,6 +45,16 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - Drag and drop custom images with embedded workflows onto the canvas to load their workflow.
 - Customize the look and feel of the UI via the integrated Settings options!
 - **NOTE** - If you use Pony in particular the Art Style category makes it super easy to see what various tags can do!
+### Currently Supported (by default) Wildcard Packs
+- Navimixu
+  - Art Styles II (you just need v2)
+  - Game Characters
+  - Shows and Tales Characters
+  - Expressions
+  - Body and Race
+  - Scenes and Locations
+  - Poses and Actions I
+  - Jobs and Roles
 
 ## Limitations
 - Doesn't do well getting metadata from complex workflows or prompts in non-core nodes. (You can help make this better if you find something it fails with and let me know.)
