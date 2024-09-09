@@ -21,7 +21,8 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 
 ## Installation
 ### Registry
-- Registry coming soon, will update once it's live, if you want it before then you can do the manual steps below.
+- Install it via the Registry - https://registry.comfy.org/publishers/kinglord/nodes/comfyui_prompt_gallery
+- Make sure you are using the new menu
 - Download any or all (or none if you're gonna be like that) of [Navimixu's archives](https://civitai.com/models/615967/ponyxl-wildcards-vault) and extract them into the `promptImages` folder (located inside this custom node directory). If you do it right your folder should look like this with all the pack images in various subfolders under `thumbnails` - (you don't have to keep the zip files):
 
 ![image](https://github.com/user-attachments/assets/811a1c7e-cd09-4f3d-8053-41989fb9f170)
@@ -29,6 +30,7 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 ### Manual
 - `git clone` this repo into your ComfyUI custom nodes folder
   - There are other ways to do this since it's just a js file but if I ever do add nodes better safe than sorry. The repo is tiny enough you can just download it and stick it in there, I won't tell.
+- You too, need to use the new menu
 - Follow the same download instructions as above ^.
 
 **NOTE** - If you were a SUPER EARLY adopter of this then you need to move the contents of the promptImages folder in INPUT to the folder within the custom node. Once done you can nuke the old folder. (If you had custom images setup you'll need to re-add them via the menu.)
@@ -49,6 +51,9 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 - The category order also controls the order of the prompt tags during random prompt generation, it lets you control the ordering at least.
 
 ## Requirements
+- This is a front end plugn so you must use the new menu for to work, you can enable it in the ComfyUI settings here (Top or Bottom doesn't matter)
+
+![image](https://github.com/user-attachments/assets/4dcbb5f2-8a68-4ef8-8759-084a8d5af7ab)
 - ComfyUI 0.1.3+
 - There's no real requirements here since it's just a js file, enjoy!
 
