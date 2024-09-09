@@ -1,6 +1,6 @@
 [project]
 name = "comfyui_prompt_gallery"
-description = ""
+description = "Quick and easy UI to use styles, characters, etc. or build entire random prompts via image collections."
 version = "1.0.0"
 license = {file = "LICENSE"}
 
@@ -9,6 +9,6 @@ Repository = "https://github.com/Kinglord/ComfyUI_Prompt_Gallery"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "kinglord"
 DisplayName = "ComfyUI_Prompt_Gallery"
 Icon = ""
