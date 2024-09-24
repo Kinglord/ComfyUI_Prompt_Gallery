@@ -10,14 +10,20 @@ A custom node that adds a UI element to the sidebar that allows for quick and ea
 ## Features
 - Snazzy sidebar menu that holds images you can use for prompt building - click and go!
 - Built in support for all of [Navimixu's Wildcard Files](https://civitai.com/models/615967/ponyxl-wildcards-vault)
-  - If you get all these you've got access to ~800 options and ~ 140 trillion combinations 😲
+  - If you get all these you've got access to ~950 options and ~ 150 trillion combinations 😲
 - "Smart" Search and Sort functions (Search works by both name and theme, so you can search for things like "cute")
 - Easily add your own images to the Custom category
 - Automatic metadata extraction for prompt tags on custom images (only works with default ComfyUI nodes ATM, works well with FLUX though!)
 - Drag and drop images with embedded workflows to load it on the canvas (similar to how the new queue works)
 
 ## Updates
-- Finished all core elements on the roadmap and ready to call this "v1.0" and pushing it to the official registry.
+### 09/24/24
+- Added support for all of the latest wildcard vaults, up to Artstyles III (09/22/24)
+  - Up to 320 supported art styles for Pony! 
+- Revamped data handling so now new libraries can be added without needing new code (yay!)
+  - Added new option to DISABLE automatic library updates (turn this off if you mess with the new json file) 
+- Added support for "random" items (2 are included in the Stereotypes G1 Vault)
+- Some code cleanup that no one really cares about.
 
 ## Installation
 ### Registry / Manager
