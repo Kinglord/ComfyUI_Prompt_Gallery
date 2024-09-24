@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "libraries": [
+    {
+      "name": "PonyXl-artstyles.yaml",
+      "type": "Art Styles",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 1
+    },
+    {
+      "name": "PonyXl-game_persona.yaml",
+      "type": "Game Characters",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 2
+    },
+    {
+      "name": "PonyXl-show_persona.yaml",
+      "type": "Show Characters",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 3
+    },
+    {
+      "name": "PonyXl-f-body.yaml",
+      "type": "Female Body",
+      "skipLevels": 1,
+      "sections": {
+        "body_race": "Race",
+        "body_form": "Build"
+      },
+      "order": 4
+    },
+    {
+      "name": "PonyXl-poses.yaml",
+      "type": "Poses",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 7
+    },
+    {
+      "name": "PonyXl-expressions.yaml",
+      "type": "Expressions",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 8,
+      "ignoreKey": "chara_expression"
+    },
+    {
+      "name": "PonyXl-scenes.yaml",
+      "type": "Scenes",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 9
+    },
+    {
+      "name": "PonyXl-jobs.yaml",
+      "type": "Jobs",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 6
+    },
+    {
+      "name": "PonyXl-other_persona.yaml",
+      "type": "Stereotypes",
+      "skipLevels": 0,
+      "sections": null,
+      "order": 10
+    }
+  ]
+}
