@@ -3,12 +3,12 @@ import { api } from "../../../scripts/api.js";
 import { $el } from "../../../scripts/ui.js";
 import * as pngMetadata from "../../../scripts/metadata/png.js";
 
-
 class PromptGallery {
     constructor(app) {
         this.app = app;
         this.maxThumbnailSize = app.ui.settings.getSettingValue("Prompt Gallery._General.maxThumbnailSize", 100);
         this.displayLabels = app.ui.settings.getSettingValue("Prompt Gallery._General.displayLabels", true);
+        this.autoUpdate = app.ui.settings.getSettingValue("Prompt Gallery._General.autoUpdate", true);
         this.allImages = [];
         this.filteredImages = [];
         this.sortAscending = true;
@@ -19,25 +19,20 @@ class PromptGallery {
         this.randomPromptButton = this.createRandomPromptButton();
         this.categoryCheckboxes = new Map();
         this.accordion = $el("div.prompt-accordion");
-        this.yamlFiles = [
-            { name: "PonyXl-artstyles.yaml", type: "Art Styles", skipLevels: 0, sections: null, order: 1 },
-            { name: "PonyXl-game_persona.yaml", type: "Game Characters", skipLevels: 0, sections: null, order: 2 },
-            { name: "PonyXl-show_persona.yaml", type: "Show Characters", skipLevels: 0, sections: null, order: 3 },
-            { name: "PonyXl-f-body.yaml", type: "Female Body", skipLevels: 0, sections: { body_race: "Race", body_form: "Build" }, order: 4 },
-            { name: "PonyXl-poses.yaml", type: "Poses", skipLevels: 0, sections: null, order: 7 },
-            { name: "PonyXl-expressions.yaml", type: "Expressions", skipLevels: 0, sections: null, order: 8, ignoreKey: "chara_expression" },
-            { name: "PonyXl-scenes.yaml", type: "Scenes", skipLevels: 0, sections: null, order: 9 },
-            { name: "PonyXl-jobs.yaml", type: "Jobs", skipLevels: 0, sections: null, order: 6 }
-            // will add more datasets here over time
-        ];
-        this.categories = this.yamlFiles.map(file => file.type);         // Derive categories from yamlFiles
         this.baseUrl = `${window.location.protocol}//${window.location.host}`;
+        this.librariesFile = "promptGallery_libraries.json";
+        this.yamlFiles = []; // This will be populated from the libraries file
+        this.loadLibraries().catch(error => console.error("Failed to load libraries:", error));
+        this.categories = this.yamlFiles.map(file => file.type);  // Derive categories from yamlFiles
         this.placeholderImageUrl = `${this.baseUrl}/prompt_gallery/image?filename=SKIP.jpeg`;
         this.customImages = [];
+        this.sectionStates = {};
         this.isSearchActive = false;
         this.debouncedSaveState = this.debounce(this.savePluginData.bind(this), 600000); // 10 minute delay
         this.resetButton = this.createResetCustomImagesButton();
         this.missingFiles = new Set();
+        this.librariesLoadPromise = null;
+        this.isDebugMode = false;
 
 
         // Initialize category order from YAML files
@@ -98,12 +93,18 @@ class PromptGallery {
         // Load plugin data and update
         this.loadPluginData().then(() => {
             this.updateDownloadButtonVisibility();
-            this.update();
         });
         
         window.addEventListener('beforeunload', () => {
             this.savePluginData();
         });
+    }
+
+    // logging flag
+    log(...args) {
+        if (this.isDebugMode) {
+            console.log(...args);
+        }
     }
 
     createResetCustomImagesButton() {
@@ -188,7 +189,7 @@ class PromptGallery {
             this.customImages = [];
             await this.savePluginData();
             this.update();
-            console.log("Custom images have been reset.");
+            this.log("Custom images have been reset.");
             app.extensionManager.toast.add({
                 severity: "info",
                 summary: "Custom Images Reset",
@@ -220,7 +221,7 @@ class PromptGallery {
             if (!response.ok) {
                 throw new Error('Failed to save plugin data');
             }
-            console.log('Plugin data saved successfully:', pluginData);
+            this.log('Plugin data saved successfully:', pluginData);
         } catch (error) {
             console.error('Error saving plugin data:', error);
         }
@@ -240,9 +241,9 @@ class PromptGallery {
                 // Always set allYamlFilesPresent to false on startup
                 this.allYamlFilesPresent = false;
     
-                console.log('Plugin data loaded successfully:', data);
+                this.log('Plugin data loaded successfully:', data);
             } else if (response.status === 404) {
-                console.log('No plugin data found. Starting with default values.');
+                this.log('No plugin data found. Starting with default values.');
                 this.customImages = [];
                 this.sectionStates = {};
                 this.categoryStates = {};
@@ -270,13 +271,115 @@ class PromptGallery {
     
         this.updateDownloadButtonVisibility();
     }
+
+    ///NEW DATA STRUCTURE STUFF
+    async loadLibraries() {
+        if (!this.librariesLoadPromise) {
+            this.librariesLoadPromise = this._loadLibrariesInternal();
+        }
+        return this.librariesLoadPromise;
+    }
+
+    async _loadLibrariesInternal() {
+        try {
+            const localLibraries = await this.getLocalLibraries();
+            const remoteLibraries = await this.getRemoteLibraries();
+
+            if (this.autoUpdate && this.shouldUpdateLibraries(localLibraries, remoteLibraries)) {
+                this.log("Version Update available, auto update enabled");
+                await this.updateLocalLibraries(remoteLibraries);
+                this.yamlFiles = remoteLibraries.libraries;
+            } else {
+                this.log("No Version Update available, or auto update disabled");
+                this.yamlFiles = localLibraries.libraries;
+            }
+
+            this.categories = this.yamlFiles.map(file => file.type);
+            this.log("Categories set:", this.categories);
+            this.log("Loaded YAML Files:", JSON.stringify(this.yamlFiles, null, 2));
+
+            return this.yamlFiles;
+        } catch (error) {
+            console.error('Error loading prompt gallery libraries:', error);
+            throw error; // Rethrow to allow error handling in calling code
+        }
+    }
+
+
+    async getLocalLibraries() {
+        this.log("getLocalLibraries called, this.librariesFile:", this.librariesFile);
+        
+        if (!this.librariesFile) {
+            console.error("this.librariesFile is not set");
+            throw new Error('librariesFile is not initialized');
+        }
+    
+        try {
+            const url = `${this.baseUrl}/prompt_gallery/yaml?filename=${this.librariesFile}`;
+            this.log(`Attempting to fetch: ${url}`);
+            const response = await fetch(url);
+            this.log('Response status:', response.status);
+            
+            if (response.status === 404) {
+                this.log(`File not found: ${this.librariesFile}`);
+                this.missingFiles.add(this.librariesFile);
+                return null;
+            }
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.log('File content:', data);
+                return data;
+            }
+            
+            console.error('Failed to load file:', response.statusText);
+        } catch (error) {
+            console.error('Error loading file:', error);
+        }
+        throw new Error('Failed to load local prompt gallery libraries');
+    }
+
+    async getRemoteLibraries() {
+        // Replace this URL with the actual URL of your remote libraries file
+        const response = await fetch(`https://raw.githubusercontent.com/Kinglord/ComfyUI_Prompt_Gallery/main/promptImages/${this.librariesFile}`);
+        if (response.ok) {
+            return await response.json();
+        }
+        throw new Error('Failed to load remote prompt gallery libraries');
+    }
+
+    shouldUpdateLibraries(localLibraries, remoteLibraries) {
+        return localLibraries.version !== remoteLibraries.version;
+    }
+
+    async updateLocalLibraries(remoteLibraries) {
+        try {
+            const response = await api.fetchApi('/prompt_gallery/update_libraries', {
+                method: 'POST',
+                body: JSON.stringify(remoteLibraries),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to update local libraries: ${response.statusText}`);
+            }
+            this.log('Local libraries updated successfully');
+        } catch (error) {
+            console.error('Error updating local libraries:', error);
+            throw error; // Re-throw the error so it can be caught by the caller
+        }
+    }
+    ///////
     
     async checkYamlFiles() {
+        await this.loadLibraries();  // This will use the cached promise if libraries are already loaded
+    
         for (const file of this.yamlFiles) {
             try {
                 const response = await fetch(`${this.baseUrl}/prompt_gallery/yaml?filename=${file.name}`);
                 if (!response.ok) {
-                    console.log(`YAML file not found: ${file.name}`);
+                    this.log(`YAML file not found: ${file.name}`);
                     return false;
                 }
             } catch (error) {
@@ -284,32 +387,36 @@ class PromptGallery {
                 return false;
             }
         }
-        console.log('All YAML files present');
+        this.log('All YAML files present');
         return true;
     }
     
+    
     updateDownloadButtonVisibility() {
-        console.log("Updating download button visibility");
-        console.log("allYamlFilesPresent:", this.allYamlFilesPresent);
-        console.log("downloadLinkDismissed:", this.downloadLinkDismissed);
+        if (this.lastButtonState === `${this.allYamlFilesPresent}-${this.downloadLinkDismissed}`) return;
+        this.log("Updating download button visibility");
+        this.log("allYamlFilesPresent:", this.allYamlFilesPresent);
+        this.log("downloadLinkDismissed:", this.downloadLinkDismissed);
     
         const existingButton = this.element.querySelector('.download-image-sets-button');
-        console.log("Existing button:", existingButton);
+        this.log("Existing button:", existingButton);
     
         if (!this.allYamlFilesPresent && !this.downloadLinkDismissed) {
-            console.log("Conditions met to show button");
+            this.log("Conditions met to show button");
             if (!existingButton) {
-                console.log("Creating new button");
+                this.log("Creating new button");
                 const button = this.createDownloadImageSetsButton();
                 this.element.insertBefore(button, this.element.children[1]);
             }
         } else {
-            console.log("Conditions met to hide button");
+            this.log("Conditions met to hide button");
             if (existingButton) {
-                console.log("Removing existing button");
+                this.log("Removing existing button");
                 existingButton.remove();
             }
         }
+
+        this.lastButtonState = `${this.allYamlFilesPresent}-${this.downloadLinkDismissed}`;
     }
 
     createAddCustomImageButton() {
@@ -371,7 +478,7 @@ class PromptGallery {
         });
     
         const link = $el("a", {
-            href: "https://civitai.com/models/615967?modelVersionId=789576",
+            href: "https://civitai.com/models/615967",
             target: "_blank",
             textContent: "New Image Sets to Download!",
             style: {
@@ -516,22 +623,28 @@ class PromptGallery {
     }
 
     setupDragAndDrop() {
-        console.log("Setting up drag and drop");
-
+        this.log("Setting up drag and drop");
+    
         const customSection = this.accordion.querySelector('.custom-section');
-        console.log("Custom section found:", customSection);
+        this.log("Custom section found:", customSection);
         if (!customSection) {
             console.error("Custom section not found in the DOM");
             return;
         }
     
         const dropZone = customSection.querySelector('.accordion-content');
-        console.log("Drop zone found:", dropZone);
+        this.log("Drop zone found:", dropZone);
         if (!dropZone) {
             console.error("Drop zone not found in the custom section");
             return;
         }
     
+        // Check if we've already set up this specific drop zone
+        if (dropZone.hasAttribute('data-drag-drop-setup')) {
+            return;
+        }
+    
+        dropZone.setAttribute('data-drag-drop-setup', 'true');
         dropZone.style.transition = 'all 0.3s ease';
         
         const addHighlight = () => {
@@ -553,20 +666,20 @@ class PromptGallery {
     
         ['dragenter', 'dragover'].forEach(eventName => {
             dropZone.addEventListener(eventName, () => {
-                console.log("Drag enter/over");
+                this.log("Drag enter/over");
                 addHighlight();
             }, false);
         });
     
         ['dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, () => {
-                console.log("Drag leave/drop");
+                this.log("Drag leave/drop");
                 removeHighlight();
             }, false);
         });
     
         dropZone.addEventListener('drop', (e) => {
-            console.log("File dropped");
+            this.log("File dropped");
             let dt = e.dataTransfer;
             let files = dt.files;
             this.handleFiles(files);
@@ -574,13 +687,18 @@ class PromptGallery {
     }
     
     handleFiles(files) {
-        console.log("Handling files:", files);
+        this.log("Handling files:", files);
         //[...files].forEach(file => this.uploadAndProcessFile(file));
         [...new Set(files)].forEach(file => this.uploadAndProcessFile(file));
     }
 
     updateLabelDisplay(display) {
         this.displayLabels = display;
+        this.update();
+    }
+
+    updateAutoUpdate(newUpdate) {
+        this.autoUpdate = newUpdate;
         this.update();
     }
 
@@ -677,7 +795,7 @@ class PromptGallery {
                 // Add to custom images only if it doesn't already exist
                 await this.addCustomImage(imagePath, "");
             } else {
-                console.log(`Image ${imagePath} already exists in custom images. Updating metadata.`);
+                this.log(`Image ${imagePath} already exists in custom images. Updating metadata.`);
             }
     
             // Attempt to fetch metadata
@@ -705,7 +823,7 @@ class PromptGallery {
             try {
                 const response = await fetch(`${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(filename)}&subfolder=custom`, {method: 'HEAD'});
                 if (response.ok) {
-                    console.log(`File ${filename} exists after ${attempt + 1} attempts`);
+                    this.log(`File ${filename} exists after ${attempt + 1} attempts`);
                     return;
                 }
             } catch (error) {
@@ -721,7 +839,7 @@ class PromptGallery {
     async fetchImageMetadata(imagePath) {
         const fullImagePath = `${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(imagePath)}&subfolder=custom`;
         
-        console.log(`Attempting to fetch metadata from: ${fullImagePath}`);
+        this.log(`Attempting to fetch metadata from: ${fullImagePath}`);
         
         try {
             const response = await fetch(fullImagePath);
@@ -730,14 +848,14 @@ class PromptGallery {
                 throw new Error(`Failed to fetch image: ${response.statusText}`);
             }
             
-            console.log(`Successfully fetched image from: ${fullImagePath}`);
+            this.log(`Successfully fetched image from: ${fullImagePath}`);
             
             const arrayBuffer = await response.arrayBuffer();
-            console.log(`ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
+            this.log(`ArrayBuffer size: ${arrayBuffer.byteLength} bytes`);
             
-            console.log('About to extract metadata...');
+            this.log('About to extract metadata...');
             const metadata = await pngMetadata.getFromPngBuffer(new Uint8Array(arrayBuffer));
-            console.log(`Extracted metadata:`, metadata);
+            this.log(`Extracted metadata:`, metadata);
             
             return metadata;
         } catch (error) {
@@ -747,9 +865,9 @@ class PromptGallery {
     }
 
     extractPromptFromMetadata(metadata) {
-        console.log('Extracting prompt from metadata:', metadata);
+        this.log('Extracting prompt from metadata:', metadata);
         if (!metadata || !metadata.prompt) {
-            console.log('No prompt found in metadata');
+            this.log('No prompt found in metadata');
             return "";
         }
     
@@ -811,7 +929,7 @@ class PromptGallery {
             this.customImages.push(newImage);
             imageAdded = true;
         } else {
-            console.log(`Image ${newImage.name} already exists in custom images. Updating metadata.`);
+            this.log(`Image ${newImage.name} already exists in custom images. Updating metadata.`);
             newImage = this.customImages[existingImageIndex]; // Use the existing image object
             newImage.path = `/prompt_gallery/image?filename=${encodeURIComponent(imagePath)}&subfolder=custom`; // Update path
             app.extensionManager.toast.add({
@@ -980,9 +1098,9 @@ class PromptGallery {
         // Always include the Custom category
         groupedImages["Custom"] = customImagesToDisplay;
 
-        //console.log("Starting sortAndDisplayImages");
-        //console.log("Grouped Images:", groupedImages);
-        //console.log("Current categorySortOrder:", this.categorySortOrder);
+        //this.log("Starting sortAndDisplayImages");
+        //this.log("Grouped Images:", groupedImages);
+        //this.log("Current categorySortOrder:", this.categorySortOrder);
     
         const categories = Object.keys(groupedImages).sort((a, b) => {
             if (a === "Custom") return 1;
@@ -995,8 +1113,8 @@ class PromptGallery {
             const indexA = this.categorySortOrder.indexOf(normalizedA);
             const indexB = this.categorySortOrder.indexOf(normalizedB);
         
-            //console.log(`Order index for ${a} (normalized: ${normalizedA}): ${indexA}`);
-            //console.log(`Order index for ${b} (normalized: ${normalizedB}): ${indexB}`);
+            //this.log(`Order index for ${a} (normalized: ${normalizedA}): ${indexA}`);
+            //this.log(`Order index for ${b} (normalized: ${normalizedB}): ${indexB}`);
         
             if (indexA === -1 && indexB === -1) return a.localeCompare(b);  // Default alphabetical order if both are not found
             if (indexA === -1) return 1;  // If A is not found, B goes first
@@ -1004,10 +1122,10 @@ class PromptGallery {
             return indexA - indexB;       // Sort by the index in the categorySortOrder
         });
     
-        //console.log("Sorted Categories:", categories);
+        //this.log("Sorted Categories:", categories);
     
         for (const category of categories) {
-            //console.log(`Processing category: ${category}`);
+            //this.log(`Processing category: ${category}`);
             const images = groupedImages[category];
             const sortedImages = [...images].sort((a, b) => {
                 return this.sortAscending 
@@ -1018,7 +1136,7 @@ class PromptGallery {
             this.accordion.appendChild(accordionSection);
         }
     
-        //console.log("Finished sortAndDisplayImages");
+        //this.log("Finished sortAndDisplayImages");
     
         this.setupDragAndDrop();
     }
@@ -1164,7 +1282,7 @@ class PromptGallery {
         });
     
         const linkElement = $el("a", {
-            href: "https://civitai.com/models/615967?modelVersionId=789576",
+            href: "https://civitai.com/models/615967",
             target: "_blank",
             innerHTML: "Download officially supported file packages here",
             style: {
@@ -1276,7 +1394,7 @@ class PromptGallery {
                 // Get the immediate parent category (one level up)
                 const pathParts = path.split('/');
                 const immediateParent = pathParts[pathParts.length - 1];
-
+    
                 const image = { name: key, path: imageUrl, tags: tags, type: type, subcategory: immediateParent };
                 
                 if (sections) {
@@ -1285,6 +1403,15 @@ class PromptGallery {
                             image.section = sectionName;
                             break;
                         }
+                    }
+                }
+    
+                // Special handling for generate_random items in Stereotypes (other_persona.yaml)
+                if (type === "Stereotypes") {
+                    const fullPath = stack.map(item => item.key).join('/');
+                    if (fullPath.includes('generate_random')) {
+                        image.section = 'Random';
+                        image.tags = tags.replace(/^"(.*)"$/, '$1');
                     }
                 }
                 
@@ -1564,41 +1691,41 @@ class PromptGallery {
 
         const selectedCategories = Array.from(this.categoryCheckboxes.entries())
             .filter(([_, checkbox]) => {
-                console.log(`Category: ${_}, Checked: ${checkbox.checked}`);
+                this.log(`Category: ${_}, Checked: ${checkbox.checked}`);
                 return checkbox.checked;
             })
             .map(([type, _]) => type);
 
         if (selectedCategories.length === 0) {
-            console.log("No categories selected");
+            this.log("No categories selected");
             this.showToast('warning', 'No Categories Selected', 'Please select at least one category for random prompts.');
             return;
         }
 
         for (const category of selectedCategories) {
-            console.log(`Processing category: ${category}`);
+            this.log(`Processing category: ${category}`);
             const categoryImages = this.allImages.filter(img => img.type === category);
-            console.log(`Found ${categoryImages.length} images for category: ${category}`);
+            this.log(`Found ${categoryImages.length} images for category: ${category}`);
 
             if (categoryImages.length > 0) {
                 const randomImage = categoryImages[Math.floor(Math.random() * categoryImages.length)];
-                console.log("Random image selected:", randomImage);
+                this.log("Random image selected:", randomImage);
 
                 const cleanedTags = this.cleanText(randomImage.tags);
-                console.log("Cleaned tags:", cleanedTags);
+                this.log("Cleaned tags:", cleanedTags);
 
                 randomPrompt = this.combineTexts(randomPrompt, cleanedTags);
-                console.log("Current random prompt:", randomPrompt);
+                this.log("Current random prompt:", randomPrompt);
             } else {
-                console.log(`No images found for category: ${category}`);
+                this.log(`No images found for category: ${category}`);
             }
         }
 
         if (randomPrompt) {
-            console.log("Final random prompt:", randomPrompt);
+            this.log("Final random prompt:", randomPrompt);
             this.copyToClipboard("Random Prompt", randomPrompt);
         } else {
-            console.log("No random prompt generated");
+            this.log("No random prompt generated");
             this.showToast('error', 'No Images Found', 'No images were found in the selected categories. Please try selecting different categories.');
         }
     }
@@ -1633,10 +1760,10 @@ class PromptGallery {
                 if (targetNode.widgets) {
                     targetWidget = targetNode.widgets.find(w => ['string', 'text', 'customtext'].includes(w.type));
                 } else {
-                    console.log("Debug: No widgets found in the selected node");
+                    this.log("Debug: No widgets found in the selected node");
                 }
             } else {
-                console.log("Debug: No node is currently selected on the canvas");
+                this.log("Debug: No node is currently selected on the canvas");
             }
         } else if (selectedValue && selectedValue !== "clipboard") {
             const [nodeId, type, index] = selectedValue.split(':');
@@ -1652,7 +1779,7 @@ class PromptGallery {
             targetWidget.value = newValue;
             
             if (targetNode.onWidgetChanged) {
-                console.log("Debug: Calling onWidgetChanged");
+                this.log("Debug: Calling onWidgetChanged");
                 targetNode.onWidgetChanged(targetWidget.name, targetWidget.value);
             }
             
@@ -1663,7 +1790,7 @@ class PromptGallery {
         } else {
             // Fallback to clipboard
             navigator.clipboard.writeText(textToCopy).then(() => {
-                console.log('Tags copied to clipboard');
+                this.log('Tags copied to clipboard');
                 this.showToast('success', 'Tags Copied!', `Tags for "${imageName}" copied to clipboard`);
             }).catch(err => {
                 console.error('Failed to copy tags: ', err);
@@ -1711,14 +1838,28 @@ app.registerExtension({
             },
         });
 
+        app.ui.settings.addSetting({
+            id: "Prompt Gallery._General.autoUpdate",
+            name: "Auto Update Library Data",
+            type: "boolean",
+            defaultValue: true,
+            onChange: (newVal, oldVal) => {
+                if (app.promptGallery) {
+                    app.promptGallery.updateAutoUpdate(newVal);
+                }
+            },
+        });
+
         const gallery = new PromptGallery(app);
         app.promptGallery = gallery;
+        // Wait for YAML files to be loaded
+        await gallery.loadLibraries();
 
         // Sort yamlFiles by type for alphabetical order
-        const sortedYamlFiles = [...gallery.yamlFiles].sort((a, b) => b.type.localeCompare(a.type));
+        const sortedYamlFiles = [...gallery.yamlFiles].sort((b, a) => a.type.localeCompare(b.type));
 
         sortedYamlFiles.forEach((file) => {
-            if (file.type !== "Female Body") {
+            if (!file.sections) {
                 const settingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}`;
                 app.ui.settings.addSetting({
                     id: settingId,

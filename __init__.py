@@ -111,6 +111,21 @@ async def view_yaml(request):
 
     return web.Response(status=400)
 
+@PromptServer.instance.routes.post("/prompt_gallery/update_libraries")
+async def update_libraries(request):
+    try:
+        data = await request.json()
+        filename = "promptGallery_libraries.json"
+        fullpath = os.path.join(datapath, filename)
+
+        with open(fullpath, 'w') as f:
+            json.dump(data, f, indent=2)
+
+        return web.Response(status=200)
+    except Exception as e:
+        print(f"Error updating libraries file: {str(e)}")
+        return web.Response(status=500, text=str(e))
+
 
 NODE_CLASS_MAPPINGS = {
 
