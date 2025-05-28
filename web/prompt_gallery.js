@@ -23,6 +23,7 @@ class PromptGallery {
         this.librariesFile = "promptGallery_libraries.json";
         this.yamlFiles = []; // This will be populated from the libraries file
         this.loadLibraries().catch(error => console.error("Failed to load libraries:", error));
+        //TODO
         this.categories = this.yamlFiles.map(file => file.type);  // Derive categories from yamlFiles
         this.placeholderImageUrl = `${this.baseUrl}/prompt_gallery/image?filename=SKIP.jpeg`;
         this.customImages = [];
@@ -33,28 +34,39 @@ class PromptGallery {
         this.missingFiles = new Set();
         this.librariesLoadPromise = null;
         this.isDebugMode = false;
+        this.toastEnabled = this.createEnableToastsCheckbox();
+        this.csvFiles = [];
 
 
         // Initialize category order from YAML files
-        this.yamlFiles.forEach(file => {
-            const settingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}`;
-            const currentValue = this.app.ui.settings.getSettingValue(settingId, null);
-            if (currentValue === null) {
-                this.app.ui.settings.setSettingValue(settingId, file.order);
-            }
-        });
+        // this.yamlFiles.forEach(file => {
+        //     const settingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}`;
+        //     const currentValue = this.app.ui.settings.getSettingValue(settingId, null);
+        //     if (currentValue === null) {
+        //         this.app.ui.settings.setSettingValue(settingId, file.order);
+        //     }
+        // });
+
+        // // TODO
+        // this.csvFiles.forEach(file => {
+        //     const settingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}`;
+        //     const currentValue = this.app.ui.settings.getSettingValue(settingId, null);
+        //     if (currentValue === null) {
+        //         this.app.ui.settings.setSettingValue(settingId, file.order);
+        //     }
+        // });
 
         // Initialize Female Body sub-categories
-        const femaleBodyFile = this.yamlFiles.find(file => file.type === "Female Body");
-        if (femaleBodyFile && femaleBodyFile.sections) {
-            Object.values(femaleBodyFile.sections).forEach((subCategory, index) => {
-                const settingId = `Prompt Gallery.Category Order.FemaleBody_${subCategory}`;
-                const currentValue = this.app.ui.settings.getSettingValue(settingId, null);
-                if (currentValue === null) {
-                    this.app.ui.settings.setSettingValue(settingId, femaleBodyFile.order + index + 1);
-                }
-            });
-        }
+        // const femaleBodyFile = this.yamlFiles.find(file => file.type === "Female Body");
+        // if (femaleBodyFile && femaleBodyFile.sections) {
+        //     Object.values(femaleBodyFile.sections).forEach((subCategory, index) => {
+        //         const settingId = `Prompt Gallery.Category Order.FemaleBody_${subCategory}`;
+        //         const currentValue = this.app.ui.settings.getSettingValue(settingId, null);
+        //         if (currentValue === null) {
+        //             this.app.ui.settings.setSettingValue(settingId, femaleBodyFile.order + index + 1);
+        //         }
+        //     });
+        // }
 
         this.updateCategoryOrder();
     
@@ -74,7 +86,8 @@ class PromptGallery {
                     marginRight: "10px" 
                 } 
             }, [this.targetNodeDropdown]),
-            this.useSelectedNodeCheckbox
+            this.useSelectedNodeCheckbox,
+            this.toastEnabled
         ]);
     
         this.element = $el("div.prompt-gallery-popup", [
@@ -156,6 +169,41 @@ class PromptGallery {
         });
     
         label.innerHTML = "Active<br>Selection";
+    
+        container.appendChild(checkbox);
+        container.appendChild(label);
+    
+        return container;
+    }
+
+    createEnableToastsCheckbox() {
+        const container = $el("div", {
+            style: {
+                display: "flex",
+                alignItems: "center",
+                marginLeft: "10px",
+                whiteSpace: "nowrap"
+            },
+            title: "Enable or disable Toasts."
+        });
+    
+        const checkbox = $el("input", {
+            type: "checkbox",
+            id: "enable-toasts",
+            style: {
+                marginRight: "5px"
+            }
+        });
+    
+        const label = $el("div", {
+            style: {
+                fontSize: "12px",
+                lineHeight: "1",
+                textAlign: "center"
+            }
+        });
+    
+        label.innerHTML = "Enable<br>Toasts";
     
         container.appendChild(checkbox);
         container.appendChild(label);
@@ -283,18 +331,37 @@ class PromptGallery {
     async _loadLibrariesInternal() {
         try {
             const localLibraries = await this.getLocalLibraries();
-            const remoteLibraries = await this.getRemoteLibraries();
+            console.log(localLibraries)
+            // const remoteLibraries = await this.getRemoteLibraries();
 
-            if (this.autoUpdate && this.shouldUpdateLibraries(localLibraries, remoteLibraries)) {
-                this.log("Version Update available, auto update enabled");
-                await this.updateLocalLibraries(remoteLibraries);
-                this.yamlFiles = remoteLibraries.libraries;
-            } else {
-                this.log("No Version Update available, or auto update disabled");
-                this.yamlFiles = localLibraries.libraries;
-            }
+            // if (this.autoUpdate && this.shouldUpdateLibraries(localLibraries, remoteLibraries)) {
+            //     this.log("Version Update available, auto update enabled");
+            //     await this.updateLocalLibraries(remoteLibraries);
+            //     this.yamlFiles = remoteLibraries.libraries;
+            // } else {
+            //     this.log("No Version Update available, or auto update disabled");
+            // }
+            localLibraries.libraries.forEach(element => {
+                switch (element.filetype) {
+                    case "yaml":
+                        this.yamlFiles.push(element)
+                        break;
+                    case "csv":
+                        this.csvFiles.push(element)
+                        break;
+                    default:
+                        console.log(`WRONG FILETYPE IN ${element}.`);
+                }
+            });
 
-            this.categories = this.yamlFiles.map(file => file.type);
+            // this.yamlFiles = localLibraries.libraries;
+            // //TODO
+            // this.csvFiles = localLibraries.csv_libraries;
+
+            //TODO
+            this.categories = localLibraries.libraries.map(file => file.type);
+            // this.categories = this.yamlFiles.map(file => file.type);
+            console.log(this.categories);
             this.log("Categories set:", this.categories);
             this.log("Loaded YAML Files:", JSON.stringify(this.yamlFiles, null, 2));
 
@@ -305,7 +372,7 @@ class PromptGallery {
         }
     }
 
-
+    
     async getLocalLibraries() {
         this.log("getLocalLibraries called, this.librariesFile:", this.librariesFile);
         
@@ -315,7 +382,7 @@ class PromptGallery {
         }
     
         try {
-            const url = `${this.baseUrl}/prompt_gallery/yaml?filename=${this.librariesFile}`;
+            const url = `${this.baseUrl}/prompt_gallery/get-file?filename=${this.librariesFile}`;
             this.log(`Attempting to fetch: ${url}`);
             const response = await fetch(url);
             this.log('Response status:', response.status);
@@ -339,37 +406,37 @@ class PromptGallery {
         throw new Error('Failed to load local prompt gallery libraries');
     }
 
-    async getRemoteLibraries() {
-        // Replace this URL with the actual URL of your remote libraries file
-        const response = await fetch(`https://raw.githubusercontent.com/Kinglord/ComfyUI_Prompt_Gallery/main/promptImages/${this.librariesFile}`);
-        if (response.ok) {
-            return await response.json();
-        }
-        throw new Error('Failed to load remote prompt gallery libraries');
-    }
+    // async getRemoteLibraries() {
+    //     // Replace this URL with the actual URL of your remote libraries file
+    //     const response = await fetch(`https://raw.githubusercontent.com/Kinglord/ComfyUI_Prompt_Gallery/main/promptImages/${this.librariesFile}`);
+    //     if (response.ok) {
+    //         return await response.json();
+    //     }
+    //     throw new Error('Failed to load remote prompt gallery libraries');
+    // }
 
-    shouldUpdateLibraries(localLibraries, remoteLibraries) {
-        return localLibraries.version !== remoteLibraries.version;
-    }
+    // shouldUpdateLibraries(localLibraries, remoteLibraries) {
+    //     return localLibraries.version !== remoteLibraries.version;
+    // }
 
-    async updateLocalLibraries(remoteLibraries) {
-        try {
-            const response = await api.fetchApi('/prompt_gallery/update_libraries', {
-                method: 'POST',
-                body: JSON.stringify(remoteLibraries),
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            if (!response.ok) {
-                throw new Error(`Failed to update local libraries: ${response.statusText}`);
-            }
-            this.log('Local libraries updated successfully');
-        } catch (error) {
-            console.error('Error updating local libraries:', error);
-            throw error; // Re-throw the error so it can be caught by the caller
-        }
-    }
+    // async updateLocalLibraries(remoteLibraries) {
+    //     try {
+    //         const response = await api.fetchApi('/prompt_gallery/update_libraries', {
+    //             method: 'POST',
+    //             body: JSON.stringify(remoteLibraries),
+    //             headers: {
+    //                 'Content-Type': 'application/json'
+    //             }
+    //         });
+    //         if (!response.ok) {
+    //             throw new Error(`Failed to update local libraries: ${response.statusText}`);
+    //         }
+    //         this.log('Local libraries updated successfully');
+    //     } catch (error) {
+    //         console.error('Error updating local libraries:', error);
+    //         throw error; // Re-throw the error so it can be caught by the caller
+    //     }
+    // }
     ///////
     
     async checkYamlFiles() {
@@ -377,7 +444,7 @@ class PromptGallery {
     
         for (const file of this.yamlFiles) {
             try {
-                const response = await fetch(`${this.baseUrl}/prompt_gallery/yaml?filename=${file.name}`);
+                const response = await fetch(`${this.baseUrl}/prompt_gallery/get-file?filetype=yaml&filename=${file.name}`);
                 if (!response.ok) {
                     this.log(`YAML file not found: ${file.name}`);
                     return false;
@@ -714,7 +781,7 @@ class PromptGallery {
 
     updateCategoryOrder() {
         const orderMap = new Map();
-    
+        //TODO
         this.yamlFiles.forEach(file => {
             const settingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}`;
             const userOrder = this.app.ui.settings.getSettingValue(settingId, file.order);
@@ -816,7 +883,7 @@ class PromptGallery {
     }
 
     async ensureFileExists(filename) {
-        const maxAttempts = 10;
+        const maxAttempts = 1;
         const delayMs = 500;
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -1199,15 +1266,41 @@ class PromptGallery {
         try {
             if (this.allImages.length === 0) {
                 let filesFound = false;
-    
+                
                 for (const file of this.yamlFiles) {
                     if (!this.missingFiles.has(file.name)) {
                         try {
-                            const yamlContent = await this.fetchYamlContent(file.name);
+                            const yamlContent = await this.fetchContent(file.name, 'yaml');
                             if (yamlContent) {
                                 const parsedContent = this.parseYamlForImages(
                                     yamlContent,
                                     file.type,
+                                    file.skipLevels,
+                                    file.sections,
+                                    file.pathAdjustment,
+                                    file.ignoreKey
+                                );
+                                
+                                this.allImages.push(...parsedContent);
+                                filesFound = true;
+                            }
+                        } catch (error) {
+                            console.warn(`File ${file.name} couldn't be processed. Skipping.`);
+                        }
+                    }
+                }
+
+                //TODO
+                for(const file of this.csvFiles) {
+                    if (!this.missingFiles.has(file.name)) {
+                        try {
+                            const csvContent = await this.fetchContent(file.name, 'csv');
+                            if (csvContent) {
+                                let folderName = file.name.replace('.csv', '')
+                                const parsedContent = this.parseCSVForImages(
+                                    csvContent,
+                                    file.type,
+                                    folderName,
                                     file.skipLevels,
                                     file.sections,
                                     file.pathAdjustment,
@@ -1327,26 +1420,42 @@ class PromptGallery {
         this.accordion.appendChild(messageContainer);
     }
 
-    async fetchYamlContent(filename) {
+    async fetchContent(filename, filetype) {
         if (this.missingFiles.has(filename)) {
             return null;
         }
-        const response = await fetch(`${this.baseUrl}/prompt_gallery/yaml?filename=${filename}`);
+        const response = await fetch(`${this.baseUrl}/prompt_gallery/get-file?filetype=${filetype}&filename=${filename}`);
         if (response.status === 404) {
             this.missingFiles.add(filename);
             return null;
         }
         if (!response.ok) {
-            console.warn(`Failed to fetch YAML file ${filename}: ${response.statusText}`);
+            console.warn(`Failed to fetch file ${filename}: ${response.statusText}`);
             return null;
         }
         const content = await response.text();
         return content.trim() === "" ? null : content;
     }
     
+    /**
+     * 
+     * @param {*} yamlContent 
+     * @param {*} type Section title
+     * @param {*} skipLevels Skip folder in thumbnails
+     * @param {*} sections 
+     * @param {*} pathAdjustment 
+     * @param {*} ignoreKey 
+     */
+    parseYAMLToJson(yamlContent, type, skipLevels, sections = null, pathAdjustment = null, ignoreKey = null) {
+        
+    }
 
     parseYamlForImages(yamlContent, type, skipLevels, sections = null, pathAdjustment = null, ignoreKey = null) {
+        console.log('-----')
+        // console.log(type + ' ' + sections)
+
         const lines = yamlContent.split('\n');
+        // const baseFolder = lines[0].slice(0, -1);
         const stack = [];
         const images = [];
     
@@ -1365,8 +1474,10 @@ class PromptGallery {
             const nextLine = lines[index + 1];
             if (nextLine && nextLine.trim().startsWith('-')) {
                 let path = stack.slice(skipLevels, -1).map(item => item.key).join('/');
-                path = path.replace(/^ponyxl\//, '');   // Remove any duplicate 'ponyxl' in the path
-    
+                // console.log(path)
+                // path = path.replace(/^ponyxl\//, '');   // Remove any duplicate 'ponyxl' in the path
+                
+                
                 const tags = nextLine.trim().substring(1).trim();
                 
                 // Skip empty tags or tags that are just a space
@@ -1388,38 +1499,56 @@ class PromptGallery {
                 }
     
                 const imageFilename = `${key}`;
-                const subfolderPath = `ponyxl/${path}`;
-                const imageUrl = `${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(imageFilename)}&subfolder=${encodeURIComponent(subfolderPath)}`;
+                // const subfolderPath = `${baseFolder}/${path}`;
+                // const subfolderPath = path;
+                const imageUrl = `${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(imageFilename)}&subfolder=${encodeURIComponent(path)}`;
                 
                 // Get the immediate parent category (one level up)
                 const pathParts = path.split('/');
+                // console.log(pathParts)
                 const immediateParent = pathParts[pathParts.length - 1];
     
                 const image = { name: key, path: imageUrl, tags: tags, type: type, subcategory: immediateParent };
                 
+                // console.log(sections[pathParts[pathParts.length - 1]])
                 if (sections) {
-                    for (const [sectionKey, sectionName] of Object.entries(sections)) {
-                        if (path.includes(sectionKey)) {
-                            image.section = sectionName;
-                            break;
-                        }
-                    }
+                    image.section = sections[pathParts[pathParts.length - 1]];
+                    // console.log(sections)
+                    // for (const [sectionKey, sectionName] of Object.entries(sections)) {
+                    //     console.log(sectionKey + ' ' + sectionName)
+                    //     if (path.includes(sectionKey)) {
+                    //         image.section = sectionName;
+                    //         console.log(sectionKey + ' ' + sectionName + ' ' + path)
+                    //         break;
+                    //     }
+                    // }
                 }
     
                 // Special handling for generate_random items in Stereotypes (other_persona.yaml)
-                if (type === "Stereotypes") {
-                    const fullPath = stack.map(item => item.key).join('/');
-                    if (fullPath.includes('generate_random')) {
-                        image.section = 'Random';
-                        image.tags = tags.replace(/^"(.*)"$/, '$1');
-                    }
-                }
+                // if (type === "Stereotypes") {
+                //     const fullPath = stack.map(item => item.key).join('/');
+                //     if (fullPath.includes('generate_random')) {
+                //         image.section = 'Random';
+                //         image.tags = tags.replace(/^"(.*)"$/, '$1');
+                //     }
+                // }
                 
                 images.push(image);
             }
         });
     
         return images;
+    }
+
+    parseCSVForImages(content, type, filename, skipLevels, sections = null, pathAdjustment = null, ignoreKey = null){
+        const images = [];
+        content.split('\n').forEach(line => {
+            let seperated = line.split('|')
+            let imageUrl = `${this.baseUrl}/prompt_gallery/image?filename=${encodeURIComponent(seperated[0])}&subfolder=${encodeURIComponent(filename)}`;
+            let image = { name: seperated[0], path: imageUrl, tags: seperated[1], type: type, subcategory: null };
+            images.push(image)
+        });
+        return images           
     }
 
     displaypromptImages(images) {
@@ -1660,30 +1789,19 @@ class PromptGallery {
         return imgContainer;
     }
 
-    cleanText(text) {
-        // Remove leading and trailing commas, spaces, and BREAK
-        text = text.replace(/^[,\s]+|[,\s]+$/g, '');
-        // Replace BREAK (case insensitive) with a period, handling various scenarios
-        text = text.replace(/\s*BREAK\s*(?:,\s*)?/gi, '. ');
-        // Remove any duplicate periods or comma-period combinations
-        text = text.replace(/\.{2,}/g, '.').replace(/,\s*\./g, '.');
-        // Ensure there's a space after each period or comma, but not at the very end
-        text = text.replace(/([.,])(?=\S)/g, '$1 ').trim();
-        return text;
-    }
-
     combineTexts(existing, newText) {
-        existing = this.cleanText(existing);
-        newText = this.cleanText(newText);
-        
         if (!existing) return newText;
         
         // If existing text ends with a period, don't add a comma
-        if (existing.endsWith('.')) {
-            return existing + ' ' + newText;
-        } else {
-            return existing + ', ' + newText;
-        }
+        // if (existing.endsWith('.')) {
+        //     return existing + ' ' + newText;
+        // }
+
+        //if the last character isnt a comma, add one
+        if(newText.slice(-1) != ',')
+            return existing + newText + ',';
+
+        return existing + newText
     }
 
     generateRandomPrompt() {
@@ -1711,10 +1829,7 @@ class PromptGallery {
                 const randomImage = categoryImages[Math.floor(Math.random() * categoryImages.length)];
                 this.log("Random image selected:", randomImage);
 
-                const cleanedTags = this.cleanText(randomImage.tags);
-                this.log("Cleaned tags:", cleanedTags);
-
-                randomPrompt = this.combineTexts(randomPrompt, cleanedTags);
+                randomPrompt = this.combineTexts(randomPrompt, randomImage.tags);
                 this.log("Current random prompt:", randomPrompt);
             } else {
                 this.log(`No images found for category: ${category}`);
@@ -1738,9 +1853,6 @@ class PromptGallery {
         }
     
         textToCopy = String(textToCopy).trim();
-        
-        // Clean the new text
-        textToCopy = this.cleanText(textToCopy);
     
         const useSelectedNode = document.getElementById("use-selected-node").checked;
         const targetNodeDropdown = document.getElementById("target-node-dropdown");
@@ -1774,9 +1886,20 @@ class PromptGallery {
         }
     
         if (targetNode && targetWidget) {
-            // Combine existing text with new text
-            let newValue = this.combineTexts(targetWidget.value || "", textToCopy);
+            let newValue = ''
+            let replacedExistingText = false
+            if(targetWidget.value.includes(textToCopy))
+                {
+                // If the clicked wildcard prompt is already in the textbox, remove it instead of adding it a 2nd time
+                newValue = targetWidget.value.replace(textToCopy,'').replace(',,',', ').replace(', ,',', ')
+                replacedExistingText = true
+            }
+            else {
+                // Combine existing text with new text
+                newValue = this.combineTexts(targetWidget.value || "", textToCopy);
+            }
             targetWidget.value = newValue;
+            
             
             if (targetNode.onWidgetChanged) {
                 this.log("Debug: Calling onWidgetChanged");
@@ -1786,7 +1909,10 @@ class PromptGallery {
             // Mark the canvas as dirty to trigger a redraw
             app.graph.setDirtyCanvas(true, true);
             
-            this.showToast('success', 'Tags Sent!', `Tags for "${imageName}" sent to ${targetNode.title} - ${targetWidget.name}`);
+            if(replacedExistingText)
+                this.showToast('success', 'Removed Tags!', `Tags for "${imageName}" removed from ${targetNode.title} - ${targetWidget.name}`);
+            else
+                this.showToast('success', 'Tags Sent!', `Tags for "${imageName}" sent to ${targetNode.title} - ${targetWidget.name}`);
         } else {
             // Fallback to clipboard
             navigator.clipboard.writeText(textToCopy).then(() => {
@@ -1800,12 +1926,15 @@ class PromptGallery {
     }
 
     showToast(severity, summary, detail) {
-        app.extensionManager.toast.add({
-            severity: severity,
-            summary: summary,
-            detail: detail,
-            life: 5000
-        });
+        const toastsEnabled = document.getElementById("enable-toasts").checked;
+
+        if (toastsEnabled)
+            app.extensionManager.toast.add({
+                severity: severity,
+                summary: summary,
+                detail: detail,
+                life: 5000
+            });
     }
 
 }
@@ -1856,13 +1985,16 @@ app.registerExtension({
         await gallery.loadLibraries();
 
         // Sort yamlFiles by type for alphabetical order
+        //TODO
         const sortedYamlFiles = [...gallery.yamlFiles].sort((b, a) => a.type.localeCompare(b.type));
-
+        let i = 0
         sortedYamlFiles.forEach((file) => {
+            i += 1
             if (!file.sections) {
                 const settingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}`;
                 app.ui.settings.addSetting({
-                    id: settingId,
+                    id: i,
+                    // id: settingId,
                     name: `${file.type}`,
                     type: "number",
                     defaultValue: file.order,
@@ -1880,8 +2012,10 @@ app.registerExtension({
             if (file.sections) {
                 Object.entries(file.sections).forEach(([key, subCategory]) => {
                     const subSettingId = `Prompt Gallery.Category Order.${file.type.replace(/\s+/g, '')}_${subCategory}`;
+                    console.log(subSettingId)
                     app.ui.settings.addSetting({
-                        id: subSettingId,
+                        id: file.name,
+                        // id: subSettingId,
                         name: `${file.type} - ${subCategory}`,
                         type: "number",
                         defaultValue: file.order,
@@ -1895,6 +2029,23 @@ app.registerExtension({
                     });
                 });
             }
+        });
+
+        gallery.csvFiles.forEach(file => {
+            i += 1
+            app.ui.settings.addSetting({
+                id: i,
+                name: `${file.type}`,
+                type: "number",
+                defaultValue: file.order,
+                min: 0,
+                step: 1,
+                onChange: (newVal, oldVal) => {
+                    if (app.promptGallery) {
+                        app.promptGallery.updateCategoryOrder();
+                    }
+                },
+            });
         });
 
         // Registering the sidebar tab

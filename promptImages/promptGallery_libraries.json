@@ -2,71 +2,39 @@
   "version": "1.0",
   "libraries": [
     {
-      "name": "PonyXl-artstyles.yaml",
-      "type": "Art Styles",
+      "name": "pokegirl_full_clothing",
+      "filetype": "csv",
+      "type": "pokegirl_full_clothing",
       "skipLevels": 0,
-      "sections": null,
-      "order": 1
+      "sections": ""
     },
     {
-      "name": "PonyXl-game_persona.yaml",
-      "type": "Game Characters",
+      "name": "pokegirl_minimal",
+      "filetype": "csv",
+      "type": "pokegirl_minimal",
       "skipLevels": 0,
-      "sections": null,
-      "order": 2
+      "sections": ""
     },
     {
-      "name": "PonyXl-show_persona.yaml",
-      "type": "Show Characters",
+      "name": "Danbooru-styles",
+      "filetype": "yaml",
+      "type": "Danbooru-styles",
       "skipLevels": 0,
-      "sections": null,
-      "order": 3
+      "sections": ""
     },
     {
-      "name": "PonyXl-f-body.yaml",
-      "type": "Female Body",
-      "skipLevels": 1,
-      "sections": {
-        "body_race": "Race",
-        "body_form": "Build"
-      },
-      "order": 4
+      "name": "PonyXl-expressions",
+      "filetype": "yaml",
+      "type": "PonyXl-expressions",
+      "skipLevels": 0,
+      "sections": ""
     },
     {
-      "name": "PonyXl-poses.yaml",
-      "type": "Poses",
+      "name": "PonyXl-f-body",
+      "filetype": "yaml",
+      "type": "PonyXl-f-body",
       "skipLevels": 0,
-      "sections": null,
-      "order": 7
-    },
-    {
-      "name": "PonyXl-expressions.yaml",
-      "type": "Expressions",
-      "skipLevels": 0,
-      "sections": null,
-      "order": 8,
-      "ignoreKey": "chara_expression"
-    },
-    {
-      "name": "PonyXl-scenes.yaml",
-      "type": "Scenes",
-      "skipLevels": 0,
-      "sections": null,
-      "order": 9
-    },
-    {
-      "name": "PonyXl-jobs.yaml",
-      "type": "Jobs",
-      "skipLevels": 0,
-      "sections": null,
-      "order": 6
-    },
-    {
-      "name": "PonyXl-other_persona.yaml",
-      "type": "Stereotypes",
-      "skipLevels": 0,
-      "sections": null,
-      "order": 10
+      "sections": ""
     }
   ]
 }
